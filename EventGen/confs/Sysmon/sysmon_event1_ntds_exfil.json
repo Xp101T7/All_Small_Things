@@ -1,0 +1,26 @@
+{
+    "EventID": 1,
+    "UtcTime": "2024-04-28 22:08:22.025",
+    "ProcessGuid": "{a23eae89-bd56-5903-0000-0010e9d95e00}",
+    "ProcessId": "6228",
+    "Image": "C:\\Windows\\System32\\ntdsutil.exe",
+    "FileVersion": "10.0.22621.1 (WinBuild.160101.0800)",
+    "Description": "NTDS Utilities",
+    "Product": "Microsoft® Windows® Operating System",
+    "Company": "Microsoft Corporation",
+    "OriginalFileName": "ntdsutil.exe",
+    "CommandLine": "ntdsutil \"activate instance ntds\" \"ifm\" \"create full c:\\windows\\temp\\data\\\" \"quit\" \"quit\"",
+    "CurrentDirectory": "C:\\Windows\\system32\\",
+    "User": "NT AUTHORITY\\NETWORK SERVICE",
+    "LogonGuid": "{a23eae89-b357-5903-0000-002005eb0700}",
+    "LogonId": "0x7EB05",
+    "TerminalSessionId": "1",
+    "IntegrityLevel": "System",
+    "Hashes": "SHA1=91180ED89976D16353404AC982A422A707F2AE37,MD5=7528CCABACCD5C1748E63E192097472A,SHA256=196CABED59111B6C4BBF78C84A56846D96CBBC4F06935A4FD4E6432EF0AE4083,IMPHASH=144C0DFA3875D7237B37631C52D608CB",
+    "ParentProcessGuid": "{a23eae89-bd28-5903-0000-00102f345d00}",
+    "ParentProcessId": "580",
+    "ParentImage": "C:\\Windows\\System32\\services.exe",
+    "ParentCommandLine": "C:\\Windows\\system32\\services.exe -k DcomLaunch -p",
+    "ParentUser": "NT AUTHORITY\\SYSTEM"
+  }
+  
