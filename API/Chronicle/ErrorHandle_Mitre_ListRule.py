@@ -1,7 +1,7 @@
 import argparse
 import json
 from google.auth.exceptions import RefreshError
-from google.auth.transport import requests
+from requests.exceptions import RequestException
 from common import chronicle_auth
 from common import regions
 
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         print(f"Authentication error: {str(e)}")
         print("Please check your credentials and ensure they are valid.")
 
-    except requests.exceptions.RequestException as e:
+    except RequestException as e:
         print(f"Error occurred while making the API request: {str(e)}")
         print("Please check your network connection and try again.")
 
