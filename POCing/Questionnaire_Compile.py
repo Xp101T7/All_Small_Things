@@ -22,6 +22,8 @@ def extract_vendor_questionnaire(base_path):
                     vendor_info_match = re.search(r'\*\*Vendor Questionnaire:\*\*\n((?:\s+- .*\n)+)', md_content)
                     if vendor_info_match:
                         vendor_info = vendor_info_match.group(1)
+                        # Debugging statement to check captured vendor info
+                        print(f"Captured Vendor Questionnaire in {file}:\n{vendor_info}")
                         # Format and add the extracted content to the overall summary
                         content += f"{heading_structure}\n**Vendor Questionnaire:**\n{vendor_info.strip()}\n\n"
 
