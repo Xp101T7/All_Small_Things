@@ -18,16 +18,14 @@ def extract_and_score_refined(base_path):
                 with open(file_path, 'r') as md_file:
                     content = md_file.read()
                 
-                # Check for the ungraded pattern
-                if re.search(r'\*\*Grade:\*\* \[Poor/Good/Excellent\]', content):
-                    ungraded_files += 1
+                # Look for specific grades
+                grades = re.findall(r'\*\*Grade:\*\* \[(Poor|Good|Excellent)\]', content)
+                if grades:
+                    scores = [score_mapping[grade] for grade in grades if grade in score_mapping]
+                    total_score += sum(scores)
+                    max_possible_score += 3
                 else:
-                    # Look for specific grades
-                    grades = re.findall(r'\*\*Grade:\*\* \[(Poor|Good|Excellent)\]', content)
-                    if grades:
-                        scores = [score_mapping[grade] for grade in grades if grade in score_mapping]
-                        total_score += sum(scores)
-                        max_possible_score += 3
+                    ungraded_files += 1
 
     # Prospective score if ungraded files were rated 'Excellent'
     prospective_max_score = total_files * 3
