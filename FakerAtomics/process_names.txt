@@ -1,0 +1,10 @@
+nc.exe
+powershell.exe
+mimikatz.exe
+malware.exe
+backdoor.exe
+cmd.exe
+taskmgr.exe
+rundll32.exe
+regsvr32.exe
+explorer.exe
