@@ -162,3 +162,8 @@ cython_debug/
 #Unwanted files
 Recommended_POC3_5.md
 Markdown_POC_Criteria_Folder_Structure_Creator.py
+
+#Unwanted Folders
+POCing/
+EventGen/
+API/
