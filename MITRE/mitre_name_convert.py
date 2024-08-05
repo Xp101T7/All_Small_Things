@@ -236,23 +236,30 @@ def convert_mitre_names(input_text):
         "reflection amplification": "T1498.002",
     }
 
-    def replace_mitre(match):
-        technique = match.group(1).lower().strip()
-        return mitre_mapping.get(technique, technique)
+    def replace_mitre(item):
+        item = item.strip().lower()
+        if item.startswith('t') or item.startswith('ta'):
+            return item.upper()
+        return mitre_mapping.get(item, item)
     
     items = [item.strip() for item in input_text.split(',')]
-    converted_items = [replace_mitre(re.match(r'(.*)', item)) for item in items]
+    converted_items = [replace_mitre(item) for item in items]
     converted_text = ', '.join(converted_items)
     
     return converted_text
 
 def split_techniques(text):
-    items = [item.strip() for item in text.split(',')]
+    items = [item.strip().upper() for item in text.split(',')]
     ta_items = [item for item in items if item.startswith('TA')]
     t1_items = [item for item in items if item.startswith('T') and not item.startswith('TA')]
     return ta_items, t1_items
 
 def generate_mitre_metadata(input_text):
+    # Remove 'mitre = ' prefix if present
+    input_text = re.sub(r'^mitre\s*=\s*', '', input_text.strip())
+    # Remove surrounding quotes if present
+    input_text = input_text.strip('"')
+    
     converted_text = convert_mitre_names(input_text)
     ta_items, t1_items = split_techniques(converted_text)
     
@@ -271,7 +278,7 @@ mitre_url = {mitre_url}
 """
 
 # Example usage
-input_text = "gather victim network information, initial access, execution, Command and Scripting Interpreter, path interception by path environment variable"
+input_text = 'mitre = "discovery, t1217, initial access, ta0002, Command and Scripting Interpreter, path interception by path environment variable"'
 
 result = generate_mitre_metadata(input_text)
 print(result)
