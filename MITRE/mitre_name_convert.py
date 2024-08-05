@@ -256,7 +256,7 @@ def generate_mitre_metadata(input_text):
     converted_text = convert_mitre_names(input_text)
     ta_items, t1_items = split_techniques(converted_text)
     
-    mitre_TA = f'"{ta_items[0]}"' if ta_items else '"No TA value found"'
+    mitre_TA = f'"{", ".join(ta_items)}"' if ta_items else '"No TA values found"'
     mitre_T1 = f'"{", ".join(t1_items)}"' if t1_items else '"No T1 values found"'
     
     first_t1 = t1_items[0] if t1_items else "No T1 value found"
@@ -271,7 +271,7 @@ mitre_url = {mitre_url}
 """
 
 # Example usage
-input_text = "gather victim network information, initial access, Command and Scripting Interpreter - PowerShell, path interception by path environment variable"
+input_text = "gather victim network information, initial access, execution, Command and Scripting Interpreter, path interception by path environment variable"
 
 result = generate_mitre_metadata(input_text)
 print(result)
