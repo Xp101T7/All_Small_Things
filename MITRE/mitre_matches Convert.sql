@@ -6,10 +6,11 @@
     1=1, "informational"
 )
 | eval mitre_matches=mvappend(
-    mvfilter(match(mitre, "(?i)\\b(T\\d{4}(\\.\\d{3})?|TA\\d{4})\\b")),
-    mvfilter(match(mitre_T1, "(?i)\\b(T\\d{4}(\\.\\d{3})?|TA\\d{4})\\b"))
+    mvfilter(match(mitre, "(?i)^(T\\d{4}(\\.\\d{3})?|TA\\d{4})$")),
+    mvfilter(match(mitre_T1, "(?i)^(T\\d{4}(\\.\\d{3})?|TA\\d{4})$"))
 )
 | eval mitre_matches=mvdedup(mitre_matches)
+| eval mitre_matches=mvmap(mitre_matches, upper(_))
 | eval annotations=if(
     isnotnull(mitre_matches),
     "(\"mitre_attack\":[\"" + mvjoin(mitre_matches, "\", \"") + "\"])",
