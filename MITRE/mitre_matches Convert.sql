@@ -34,8 +34,8 @@
         1=1, "informational"
     ),
     mitre_matches=mvappend(
-        mvfilter(match(mitre, "(?i)\\b(TA\\d{4}(\\.\\d{3})?|T\\d{4}(\\.\\d{3})?)\\b")),
-        mvfilter(match(mitre_T1, "(?i)\\b(TA\\d{4}(\\.\\d{3})?|T\\d{4}(\\.\\d{3})?)\\b"))
+        mvfilter(match(mitre, "(?i)\\b(TA\\d{4}(\\.\\d{3})?|T1\\d{3}(\\.\\d{3})?)\\b")),
+        mvfilter(match(mitre_T1, "(?i)\\b(TA\\d{4}(\\.\\d{3})?|T1\\d{3}(\\.\\d{3})?)\\b"))
     ),
     annotations=if(
         isnotnull(mitre_matches), 
