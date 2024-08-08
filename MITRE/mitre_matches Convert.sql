@@ -49,7 +49,7 @@
     combined_mitre=mvappend(mitre, mitre_T1),
     combined_mitre=mvmap(combined_mitre, split(combined_mitre, ",\s*"))
 | eval 
-    mitre_matches=mvfilter(match(combined_mitre, "(?i)^(T\d{1,4}(\.\d{3})?|TA\d{4}(\.\d{3})?)$")),
+    mitre_matches=mvfilter(match(combined_mitre, "^(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$")),
     mitre_matches=mvmap(mitre_matches, upper(trim(mitre_matches)))
 | eval
     annotations=if(
