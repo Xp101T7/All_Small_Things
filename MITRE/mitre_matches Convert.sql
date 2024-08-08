@@ -62,9 +62,16 @@
 
 ---
 
-| eval combined_mitre = mvappend(coalesce(mitre, ""), coalesce(mitre_T1, ""), coalesce(mitre_TA, ""))
-| eval combined_mitre = mvfilter(match(combined_mitre, "^(?i)(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$"))
-| eval combined_mitre = mvmap(combined_mitre, upper(trim(combined_mitre)))
+| eval mitre=coalesce(mitre, "")
+| eval mitre_T1=coalesce(mitre_T1, "")
+| eval mitre_TA=coalesce(mitre_TA, "")
+| eval combined_mitre = mvappend(
+    split(mitre, ","),
+    split(mitre_T1, ","),
+    split(mitre_TA, ",")
+)
+| eval combined_mitre = mvmap(combined_mitre, trim(upper(combined_mitre)))
+| eval combined_mitre = mvfilter(match(combined_mitre, "^(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$"))
 | eval combined_mitre = mvdedup(combined_mitre)
 | eval unique_count = mvcount(combined_mitre)
 | eval unique_combined_mitre = mvjoin(combined_mitre, "\",\"")
@@ -73,3 +80,4 @@
     "(\"mitre_attack\":[\"" + unique_combined_mitre + "\"])", 
     null()
 )
+
