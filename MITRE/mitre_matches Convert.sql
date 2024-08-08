@@ -46,12 +46,13 @@
 ---
 
 | eval 
-    combined_mitre=mvappend(mitre, mitre_T1)
+    combined_mitre=mvappend(mitre, mitre_T1, mitre_TA)
 | eval 
     combined_mitre=split(mvjoin(combined_mitre, ","), ",")
 | eval 
     combined_mitre=mvfilter(match(combined_mitre, "^(?i)(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$")),
-    combined_mitre=mvmap(combined_mitre, upper(trim(combined_mitre)))
+    combined_mitre=mvmap(combined_mitre, upper(trim(combined_mitre))),
+    combined_mitre=mvuniq(combined_mitre)
 | eval
     annotations=if(
         isnotnull(combined_mitre) AND mvcount(combined_mitre) > 0, 
