@@ -62,13 +62,13 @@
 
 ---
 
-| eval combined_mitre=mvappend(mitre, mitre_T1, mitre_TA)
-| eval combined_mitre=split(mvjoin(combined_mitre, ","), ",")
-| eval combined_mitre=mvfilter(match(combined_mitre, "^(?i)(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$")),
-    combined_mitre=mvmap(combined_mitre, upper(trim(combined_mitre)))
-| stats dc(combined_mitre) as unique_count values(combined_mitre) as unique_combined_mitre by _raw
-| eval unique_combined_mitre=mvjoin(unique_combined_mitre, ",")
-| eval annotations=if(
+| eval combined_mitre = mvappend(coalesce(mitre, ""), coalesce(mitre_T1, ""), coalesce(mitre_TA, ""))
+| eval combined_mitre = mvfilter(match(combined_mitre, "^(?i)(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$"))
+| eval combined_mitre = mvmap(combined_mitre, upper(trim(combined_mitre)))
+| eval combined_mitre = mvdedup(combined_mitre)
+| eval unique_count = mvcount(combined_mitre)
+| eval unique_combined_mitre = mvjoin(combined_mitre, "\",\"")
+| eval annotations = if(
     isnotnull(unique_combined_mitre) AND unique_count > 0, 
     "(\"mitre_attack\":[\"" + unique_combined_mitre + "\"])", 
     null()
