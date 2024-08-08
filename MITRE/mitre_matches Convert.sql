@@ -66,7 +66,8 @@
 | eval combined_mitre=split(mvjoin(combined_mitre, ","), ",")
 | eval combined_mitre=mvfilter(match(combined_mitre, "^(?i)(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$"))
 | eval combined_mitre=mvmap(combined_mitre, upper(trim(combined_mitre)))
-| eventstats values(combined_mitre) as unique_mitre
+| eval unique_mitre = [| stats values(combined_mitre) as combined_mitre by _raw | return $combined_mitre]
+| eval unique_mitre=mvsort(mvuniq(split(unique_mitre, ",")))
 | eval annotations=if(
     isnotnull(unique_mitre) AND mvcount(unique_mitre) > 0, 
     "(\"mitre_attack\":[\"" + mvjoin(unique_mitre, "\", \"") + "\"])", 
