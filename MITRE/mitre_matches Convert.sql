@@ -46,14 +46,15 @@
 ---
 
 | eval 
-    combined_mitre=mvappend(mitre, mitre_T1),
-    combined_mitre=mvmap(combined_mitre, split(combined_mitre, ",\s*"))
+    combined_mitre=mvappend(mitre, mitre_T1)
 | eval 
-    mitre_matches=mvfilter(match(combined_mitre, "^(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$")),
-    mitre_matches=mvmap(mitre_matches, upper(trim(mitre_matches)))
+    combined_mitre=split(mvjoin(combined_mitre, ","), ",")
+| eval 
+    combined_mitre=mvfilter(match(combined_mitre, "^(?i)(T\d{1,4}(\.\d{1,3})?|TA\d{4}(\.\d{1,3})?)$")),
+    combined_mitre=mvmap(combined_mitre, upper(trim(combined_mitre)))
 | eval
     annotations=if(
-        isnotnull(mitre_matches) AND mvcount(mitre_matches) > 0, 
-        "(\"mitre_attack\":[\"" + mvjoin(mitre_matches, "\", \"") + "\"])", 
+        isnotnull(combined_mitre) AND mvcount(combined_mitre) > 0, 
+        "(\"mitre_attack\":[\"" + mvjoin(combined_mitre, "\", \"") + "\"])", 
         null()
     )
