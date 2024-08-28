@@ -1,6 +1,84 @@
 #!/usr/bin/env python3
 
-# ... (keep the existing imports and function definitions) ...
+#!/usr/bin/env python3
+
+# Copyright 2021 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import argparse
+import datetime
+from typing import Any, Mapping, Optional, Sequence, Tuple
+
+from google.auth.transport import requests
+
+from common import chronicle_auth
+from common import datetime_converter
+from common import regions
+
+CHRONICLE_API_BASE_URL = "https://backstory.googleapis.com"
+
+def list_errors(
+    http_session: requests.AuthorizedSession,
+    error_category: str = "",
+    error_start_time: Optional[datetime.datetime] = None,
+    error_end_time: Optional[datetime.datetime] = None,
+    version_id: str = "",
+    page_size: int = 0,
+    page_token: str = "") -> Tuple[Sequence[Mapping[str, Any]], str]:
+    """Lists errors.
+
+    Args:
+      http_session: Authorized session for HTTP requests.
+      error_category: A string that filters which errors are returned by their
+        ErrorCategory (i.e. 'RULES_EXECUTION_ERROR')
+        (default = no filter on error category).
+      error_start_time: The time to start listing errors from, inclusive
+      (default = no min error_start_time).
+      error_end_time: The time to end listing errors to, exclusive (default = no
+        max error_end_time).
+      version_id: Unique ID of the detection rule to retrieve errors for
+        ("ru_<UUID>" or "ru_<UUID>@v_<seconds>_<nanoseconds>"). If a version
+        suffix isn't specified, we list errors for all versions of that rule.
+      page_size: Maximum number of errors to return.
+        Must be non-negative, and is capped at a server-side limit of 1000
+        (default = server-side default of 100)
+      page_token: Page token from a previous ListErrors call used for pagination.
+        If not specified, the first page is returned.
+
+    Returns:
+      List of errors and a page token for the next page of errors, if there are
+      any.
+
+    Raises:
+      requests.exceptions.HTTPError: HTTP request resulted in an error
+        (response.status_code >= 400).
+    """
+    url = f"{CHRONICLE_API_BASE_URL}/v2/health/errors"
+    params_list = [("category", error_category),
+                   ("start_time", datetime_converter.strftime(error_start_time)),
+                   ("end_time", datetime_converter.strftime(error_end_time)),
+                   ("rule_filter.version_id", version_id),
+                   ("page_size", page_size), ("page_token", page_token)]
+    params = {k: v for k, v in params_list if v}
+
+    response = http_session.request("GET", url, params=params)
+
+    if response.status_code >= 400:
+        print(response.text)
+    response.raise_for_status()
+    j = response.json()
+    return j.get("errors", []), j.get("nextPageToken", "")
 
 def format_error(error):
     """Format a single error for display."""
