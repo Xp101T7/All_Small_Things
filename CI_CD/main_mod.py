@@ -25,23 +25,15 @@ def get_collection(base_url, api_key, collection_id):
     try:
         response = requests.get(f"{base_url}/api/collections/{collection_id}/", headers=headers, timeout=90)
         
-        # Print status code and raw text response for debugging
-        print(f"Status Code: {response.status_code}")
-        
         if response.status_code == 204:
             print("No content available for this request (204 No Content).")
             return None
         
-        # Check if the response is empty
         if not response.text:
             print("Received an empty response.")
             return None
         
-        print(f"Response Text: {response.text}")
-        
         response.raise_for_status()  # Raise an exception for non-200 status codes
-        
-        # Attempt to parse the response as JSON
         return response.json()
         
     except requests.exceptions.RequestException as e:
@@ -51,8 +43,6 @@ def get_collection(base_url, api_key, collection_id):
         print(f"Error decoding JSON: {json_error}")
         print(f"Response content: {response.text}")
         return None
-
-
 
 def get_deployed(base_url, api_key):
     """
@@ -85,17 +75,26 @@ def get_supplemental_info(base_url, api_key, guid):
         print(f"Error fetching supplemental data for GUID {guid}: {e}")
         return None
 
-def get_bas_script_info(base_url, api_key):
+def search_by_guid_list(base_url, api_key, guid_list):
     """
-    Fetch data from the bas/script endpoint.
+    Search the API using a list of GUIDs by passing them to the bas/script endpoint.
     """
-    headers = {"X-API-Key": f"{api_key}"}
+    headers = {"X-API-Key": f"{api_key}", "Content-Type": "application/json"}
+    
+    # JSON payload as shown in your image, with the actual GUID list inserted
+    payload = {
+        "field": "sessions.analytics.guid",
+        "op": "in",
+        "value": guid_list  # Insert the list of GUIDs here
+    }
+    
     try:
-        response = requests.get(f"{base_url}/api/search/bas/script/?page=0&size=1000", headers=headers, timeout=90)
+        # POST the JSON payload to the bas/script endpoint
+        response = requests.post(f"{base_url}/api/search/bas/script/?page=0&size=1000", json=payload, headers=headers, timeout=90)
         response.raise_for_status()  # Raise an exception for non-200 status codes
-        return response.json()
+        return response.json()  # Return the response as a JSON object
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching bas script data: {e}")
+        print(f"Error fetching data with GUID list: {e}")
         return None
 
 def main():
@@ -125,15 +124,15 @@ def main():
     
     combined_data = {}  # Initialize a dictionary to store combined information
     
+    # Search using the list of GUIDs
+    bas_script_info = search_by_guid_list(BASE_URL, API_KEY, analytics)  # Pass the entire analytics list
+    
     for guid in deployed_guids:
         supplemental_info = get_supplemental_info(BASE_URL, API_KEY, guid)  # Get supplemental info for each GUID
         if supplemental_info is None:
             continue
         
-        # Assuming 'name' is available in the supplemental info
         name = supplemental_info.get('name', f"Unnamed-{guid}")  # Use the GUID as a fallback name
-        
-        bas_script_info = get_bas_script_info(BASE_URL, API_KEY)  # Get bas/script info
         
         # Combine the information
         combined_data[name] = {
