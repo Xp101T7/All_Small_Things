@@ -1,69 +1,96 @@
 import requests
+import json
+from typing import List, Dict, Any
 
-def get_collection_guids():
-    # Query the endpoint for collections
-    # Replace with your actual API endpoint and authentication
-    url = "https://api.example.com/collections"
-    response = requests.get(url)
-    collections = response.json()
-    return [collection['guid'] for collection in collections]
+BASE_URL = "https://app.snapattack.com"
+API_KEY = ""  # Replace with your actual API key
+COLLECTION_GUID = "0101267a-80df-43b8-894e-90363fc2a256"
 
-def get_deployed_rules():
-    # Query the endpoint for deployed rules
-    # Replace with your actual API endpoint and authentication
-    url = "https://api.example.com/deployed_rules"
-    response = requests.get(url)
-    return response.json()
+def api_request(endpoint: str, method: str = "GET", data: Dict[str, Any] = None) -> Dict[str, Any]:
+    headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+    url = f"{BASE_URL}{endpoint}"
+    
+    try:
+        if method == "GET":
+            response = requests.get(url, headers=headers, timeout=90)
+        elif method == "POST":
+            response = requests.post(url, json=data, headers=headers, timeout=90)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+        
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error in API request to {url}: {e}")
+        return {}
 
-def compare_collections_and_rules(collection_guids, deployed_rules):
-    # Implement your comparison logic here
-    # This is a placeholder implementation
-    return collection_guids
+def get_collection_guids(collection_id: str) -> List[str]:
+    data = api_request(f"/api/collections/{collection_id}/")
+    if not data or 'analytic_filter' not in data:
+        print("Failed to retrieve collection data or no 'analytic_filter' found.")
+        return []
+    
+    def extract_guids(filter_dict):
+        if isinstance(filter_dict, dict) and 'items' in filter_dict:
+            for item in filter_dict['items']:
+                if isinstance(item, dict):
+                    if item.get('field') == 'guid':
+                        return item.get('value', [])
+                    elif 'items' in item:
+                        result = extract_guids(item)
+                        if result:
+                            return result
+        return []
+    
+    return extract_guids(data['analytic_filter'])
 
-def query_signatures_supplemental(guid):
-    # Query the signatures supplemental endpoint for a specific GUID
-    # Replace with your actual API endpoint and authentication
-    url = f"https://api.example.com/signatures_supplemental/{guid}"
-    response = requests.get(url)
-    return response.json()
+def get_deployed_guids() -> List[str]:
+    payload = {
+        "field": "deployment_integration_filter.success",
+        "op": "not_equals",
+        "value": "true"
+    }
+    data = api_request("/api/search/signatures/query/cached/v2/?page=0&size=5000", method="POST", data=payload)
+    return [item['guid'] for item in data.get('items', []) if 'guid' in item]
 
-def get_bas_script(guid):
-    # Query the BAS script endpoint for a specific GUID
-    # Replace with your actual API endpoint and authentication
-    url = f"https://api.example.com/bas_script/{guid}"
-    response = requests.get(url)
-    return response.text
+def get_supplemental_info(guid: str) -> Dict[str, Any]:
+    return api_request(f"/api/search/signatures/query/cached/v2/{guid}/supplemental/")
+
+def get_bas_script_info(guids: List[str]) -> Dict[str, Any]:
+    payload = {
+        "field": "sessions.analytics.guid",
+        "op": "in",
+        "value": guids
+    }
+    return api_request("/api/search/bas/script/?page=0&size=1000", method="POST", data=payload)
 
 def main():
-    # Get collection GUIDs
-    collection_guids = get_collection_guids()
-
-    # Get deployed rules
-    deployed_rules = get_deployed_rules()
-
-    # Compare and get the list of GUIDs to process
-    guids_to_process = compare_collections_and_rules(collection_guids, deployed_rules)
-
-    # Process each GUID
-    results = []
-    for guid in guids_to_process:
-        signatures_supplemental = query_signatures_supplemental(guid)
-        bas_script = get_bas_script(guid)
+    collection_guids = get_collection_guids(COLLECTION_GUID)
+    deployed_guids = get_deployed_guids()
+    
+    # Find common GUIDs between collection and deployed
+    common_guids = list(set(collection_guids) & set(deployed_guids))
+    
+    bas_script_info = get_bas_script_info(common_guids)
+    
+    combined_data = {}
+    for guid in common_guids:
+        supplemental_info = get_supplemental_info(guid)
+        name = supplemental_info.get('name', f"Unnamed-{guid}")
         
-        # Combine the results
-        result = {
+        combined_data[name] = {
             "guid": guid,
-            "signatures_supplemental": signatures_supplemental,
-            "bas_script": bas_script
+            "supplemental_info": supplemental_info,
+            "bas_script_info": next((item for item in bas_script_info.get('items', []) if item.get('guid') == guid), {})
         }
-        results.append(result)
-
-    # Create a main list with names as references
-    main_list = {result['guid']: result for result in results}
-
-    # You can now use main_list to access the data for each GUID by its name (GUID)
-    return main_list
+    
+    # Output the combined data (you can modify this part to suit your needs)
+    for name, data in combined_data.items():
+        print(f"Name: {name}")
+        print(f"GUID: {data['guid']}")
+        print("Supplemental Info:", json.dumps(data['supplemental_info'], indent=2))
+        print("BAS Script Info:", json.dumps(data['bas_script_info'], indent=2))
+        print("-" * 50)
 
 if __name__ == "__main__":
-    result = main()
-    print(result)
+    main()
