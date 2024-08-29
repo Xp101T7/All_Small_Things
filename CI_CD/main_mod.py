@@ -34,7 +34,7 @@ def extract_values(filter_dict):
 
 def get_collection(collection_id):
     """Fetch collection data from the API using the collection GUID."""
-    return api_request(f"/api/collections/{collection_id}/")
+    return api_request(f"/api/collections/{collection_id}")
 
 def get_deployed():
     """Fetch data from the API related to deployed signatures."""
@@ -43,11 +43,11 @@ def get_deployed():
         "op": "not_equals",
         "value": "true"
     }
-    return api_request("/api/search/signatures/query/cached/v2/?page=0&size=5000", method="POST", data=payload)
+    return api_request("/api/search/signatures/query/cached/v2", params={"page": 0, "size": 5000}, method="POST", data=payload)
 
 def get_signature_supplemental(guid):
     """Fetch supplemental data for a specific signature GUID."""
-    return api_request(f"/api/search/signatures/query/cached/v2/{guid}/supplemental/")
+    return api_request(f"/api/search/signatures/query/cached/v2/{guid}/supplemental")
 
 def get_bas_scripts(guids):
     """Fetch BAS scripts for the given GUIDs."""
@@ -56,7 +56,7 @@ def get_bas_scripts(guids):
         "op": "in",
         "value": guids
     }
-    return api_request("/api/search/bas/script/?page=0&size=1000", method="POST", data=payload)
+    return api_request("/api/search/bas/script", params={"page": 0, "size": 1000}, method="POST", data=payload)
 
 def main():
     # Fetch collection data
@@ -66,12 +66,12 @@ def main():
         return
 
     # Print the collections list
-    print("Collections List:")
+    print("Collection Data:")
     print(json.dumps(collection_data, indent=2))
     print("\n" + "="*50 + "\n")
 
     # Extract GUIDs from collection data
-    analytics_guids = extract_values(collection_data['analytic_filter'])
+    analytics_guids = extract_values(collection_data.get('analytic_filter', {}))
     
     # Fetch deployed signatures data
     deployed_data = get_deployed()
