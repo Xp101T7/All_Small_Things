@@ -89,12 +89,23 @@ def search_by_guid_list(base_url, api_key, guid_list):
     }
     
     try:
+        print("Sending payload to bas/script endpoint...")
+        print(json.dumps(payload, indent=2))  # Print the payload for debugging
+        
         # POST the JSON payload to the bas/script endpoint
         response = requests.post(f"{base_url}/api/search/bas/script/?page=0&size=1000", json=payload, headers=headers, timeout=90)
+        
+        print(f"Response Status Code: {response.status_code}")  # Print the status code
+        print(f"Response Text: {response.text[:500]}")  # Print the first 500 characters of the response for debugging
+        
         response.raise_for_status()  # Raise an exception for non-200 status codes
         return response.json()  # Return the response as a JSON object
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data with GUID list: {e}")
+        return None
+    except json.JSONDecodeError as json_error:
+        print(f"Error decoding JSON: {json_error}")
+        print(f"Response content: {response.text}")
         return None
 
 def main():
