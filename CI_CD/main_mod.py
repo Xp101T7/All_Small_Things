@@ -24,11 +24,24 @@ def get_collection(base_url, api_key, collection_id):
     headers = {"X-API-Key": f"{api_key}"}
     try:
         response = requests.get(f"{base_url}/api/collections/{collection_id}/", headers=headers, timeout=90)
+        
+        # Print status code and raw text response for debugging
+        print(f"Status Code: {response.status_code}")
+        print(f"Response Text: {response.text}")
+        
         response.raise_for_status()  # Raise an exception for non-200 status codes
+        
+        # Attempt to parse the response as JSON
         return response.json()
+        
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
         return None
+    except json.JSONDecodeError as json_error:
+        print(f"Error decoding JSON: {json_error}")
+        print(f"Response content: {response.text}")
+        return None
+
 
 def get_deployed(base_url, api_key):
     """
