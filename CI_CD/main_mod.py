@@ -1,114 +1,87 @@
 import requests
 import json
+import csv
 
 # Constants for API endpoint, API key, and the collection GUID
 BASE_URL = "https://app.snapattack.com"
 API_KEY = ""  # API key for authentication
 COLLECTION_GUID = "0101267a-80df-43b8-894e-90363fc2a256"  # Unique identifier for the collection
 
-def api_request(endpoint, method="GET", params=None, data=None):
-    """Generic function to make API requests"""
-    headers = {"X-API-Key": API_KEY}
-    url = f"{BASE_URL}{endpoint}"
+# ... [Previous functions remain unchanged] ...
+
+def get_supplemental_data(base_url, api_key, guid):
+    """
+    Fetch supplemental data for a specific GUID from the API.
+    
+    Parameters:
+        base_url (str): The base URL of the API.
+        api_key (str): The API key for authentication.
+        guid (str): The GUID to fetch supplemental data for.
+    
+    Returns:
+        dict or None: The JSON response from the API as a dictionary, or None if the request fails.
+    """
+    headers = {"X-API-Key": f"{api_key}"}
     try:
-        if method == "GET":
-            response = requests.get(url, headers=headers, params=params, timeout=90)
-        elif method == "POST":
-            response = requests.post(url, headers=headers, json=data, timeout=90)
+        response = requests.get(f"{base_url}/api/search/signatures/query/cached/v2/{guid}/supplemental", headers=headers, timeout=90)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error in API request to {url}: {e}")
+        print(f"Error fetching supplemental data for GUID {guid}: {e}")
         return None
 
-def extract_values(filter_dict):
-    """
-    Recursively extract values from a nested dictionary structure where the 'field' is 'guid'.
-    """
-    for item in filter_dict['items']:
-        if isinstance(item, dict):  # Check if the item is a dictionary
-            if 'field' in item and item['field'] == 'guid':  # Look for 'guid' field
-                return extract_values(item)  # Recurse if 'guid' is found
-            return item.get('value', [])  # Return the value if present
-    return []
-
-def get_collection(collection_id):
-    """Fetch collection data from the API using the collection GUID."""
-    return api_request(f"/api/collections/{collection_id}")
-
-def get_deployed():
-    """Fetch data from the API related to deployed signatures."""
-    payload = {
-        "field": "deployment_integration_filter.success",
-        "op": "not_equals",
-        "value": "true"
-    }
-    return api_request("/api/search/signatures/query/cached/v2", params={"page": 0, "size": 5000}, method="POST", data=payload)
-
-def get_signature_supplemental(guid):
-    """Fetch supplemental data for a specific signature GUID."""
-    return api_request(f"/api/search/signatures/query/cached/v2/{guid}/supplemental")
-
-def get_bas_scripts(guids):
-    """Fetch BAS scripts for the given GUIDs."""
-    payload = {
-        "field": "sessions.analytics.guid",
-        "op": "in",
-        "value": guids
-    }
-    return api_request("/api/search/bas/script", params={"page": 0, "size": 1000}, method="POST", data=payload)
-
 def main():
-    # Fetch collection data
-    collection_data = get_collection(COLLECTION_GUID)
-    if not collection_data:
+    """
+    Main function to fetch and process collection and deployment data, 
+    get supplemental data for each GUID, and output to a CSV file.
+    """
+    data = get_collection(BASE_URL, API_KEY, COLLECTION_GUID)
+    
+    if data is None:
         print("Failed to retrieve collection data.")
         return
-
-    # Print the collections list
-    print("Collection Data:")
-    print(json.dumps(collection_data, indent=2))
-    print("\n" + "="*50 + "\n")
-
-    # Extract GUIDs from collection data
-    analytics_guids = extract_values(collection_data.get('analytic_filter', {}))
     
-    # Fetch deployed signatures data
-    deployed_data = get_deployed()
-    if not deployed_data:
+    if 'analytic_filter' not in data:
+        print("No 'analytic_filter' found in the collection data.")
+        return
+    
+    analytics = extract_values(data['analytic_filter'])
+    attacks = extract_values(data['bsscript_filter'])
+    threatevents = extract_values(data['sessions'])
+    
+    deployed = get_deployed(BASE_URL, API_KEY)
+    
+    if deployed is None:
         print("Failed to retrieve deployed data.")
         return
-
-    # Extract GUIDs from deployed data
-    deployed_guids = [item.get('guid') for item in deployed_data.get('items', [])]
     
-    # Find matching GUIDs
-    matching_guids = [guid for guid in analytics_guids if guid in deployed_guids]
-
-    # Fetch BAS scripts for matching GUIDs
-    bas_scripts = get_bas_scripts(matching_guids)
-    if not bas_scripts:
-        print("Failed to retrieve BAS scripts.")
-        return
-
-    # Create a dictionary of BAS scripts keyed by GUID
-    bas_dict = {script['guid']: script for script in bas_scripts.get('items', [])}
-
-    # Process matching GUIDs
-    result_dict = {}
-    for guid in matching_guids:
-        supplemental_data = get_signature_supplemental(guid)
-        if supplemental_data:
-            name = supplemental_data.get('name', 'Unknown')
-            result_dict[name] = {
-                'guid': guid,
-                'supplemental_data': supplemental_data,
-                'bas_script': bas_dict.get(guid, {})
-            }
-
-    # Output the results
-    print("Processed Results:")
-    print(json.dumps(result_dict, indent=2))
+    deployed_guids = [item.get('guid') for item in deployed.get('items', [])]
+    matches = [x for x in deployed_guids if x in analytics]
+    diff = [x for x in analytics if x not in deployed_guids]
+    
+    # Combine all GUIDs
+    all_guids = list(set(matches + diff))
+    
+    # Fetch supplemental data for each GUID and write to CSV
+    with open('supplemental_data.csv', 'w', newline='') as csvfile:
+        fieldnames = ['GUID', 'Name', 'Description', 'DetectionType', 'ThreatScore']  # Add or modify fields as needed
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for guid in all_guids:
+            supplemental_data = get_supplemental_data(BASE_URL, API_KEY, guid)
+            if supplemental_data:
+                writer.writerow({
+                    'GUID': guid,
+                    'Name': supplemental_data.get('name', ''),
+                    'Description': supplemental_data.get('description', ''),
+                    'DetectionType': supplemental_data.get('detectionType', ''),
+                    'ThreatScore': supplemental_data.get('threatScore', '')
+                })
+            else:
+                writer.writerow({'GUID': guid, 'Name': 'Error fetching data'})
+    
+    print("Supplemental data has been written to supplemental_data.csv")
 
 if __name__ == "__main__":
     main()
