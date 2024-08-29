@@ -1,62 +1,56 @@
 import requests
 import json
-from typing import List, Dict, Any
 
+# Constants for API endpoint, API key, and the collection GUID
 BASE_URL = "https://app.snapattack.com"
-API_KEY = ""  # Replace with your actual API key
-COLLECTION_GUID = "0101267a-80df-43b8-894e-90363fc2a256"
+API_KEY = ""  # API key for authentication
+COLLECTION_GUID = "0101267a-80df-43b8-894e-90363fc2a256"  # Unique identifier for the collection
 
-def api_request(endpoint: str, method: str = "GET", data: Dict[str, Any] = None) -> Dict[str, Any]:
-    headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+def api_request(endpoint, method="GET", params=None, data=None):
+    """Generic function to make API requests"""
+    headers = {"X-API-Key": API_KEY}
     url = f"{BASE_URL}{endpoint}"
-    
     try:
         if method == "GET":
-            response = requests.get(url, headers=headers, timeout=90)
+            response = requests.get(url, headers=headers, params=params, timeout=90)
         elif method == "POST":
-            response = requests.post(url, json=data, headers=headers, timeout=90)
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
-        
+            response = requests.post(url, headers=headers, json=data, timeout=90)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error in API request to {url}: {e}")
-        return {}
+        return None
 
-def get_collection_guids(collection_id: str) -> List[str]:
-    data = api_request(f"/api/collections/{collection_id}/")
-    if not data or 'analytic_filter' not in data:
-        print("Failed to retrieve collection data or no 'analytic_filter' found.")
-        return []
-    
-    def extract_guids(filter_dict):
-        if isinstance(filter_dict, dict) and 'items' in filter_dict:
-            for item in filter_dict['items']:
-                if isinstance(item, dict):
-                    if item.get('field') == 'guid':
-                        return item.get('value', [])
-                    elif 'items' in item:
-                        result = extract_guids(item)
-                        if result:
-                            return result
-        return []
-    
-    return extract_guids(data['analytic_filter'])
+def extract_values(filter_dict):
+    """
+    Recursively extract values from a nested dictionary structure where the 'field' is 'guid'.
+    """
+    for item in filter_dict['items']:
+        if isinstance(item, dict):  # Check if the item is a dictionary
+            if 'field' in item and item['field'] == 'guid':  # Look for 'guid' field
+                return extract_values(item)  # Recurse if 'guid' is found
+            return item.get('value', [])  # Return the value if present
+    return []
 
-def get_deployed_guids() -> List[str]:
+def get_collection(collection_id):
+    """Fetch collection data from the API using the collection GUID."""
+    return api_request(f"/api/collections/{collection_id}/")
+
+def get_deployed():
+    """Fetch data from the API related to deployed signatures."""
     payload = {
         "field": "deployment_integration_filter.success",
         "op": "not_equals",
         "value": "true"
     }
-    data = api_request("/api/search/signatures/query/cached/v2/?page=0&size=5000", method="POST", data=payload)
-    return [item['guid'] for item in data.get('items', []) if 'guid' in item]
+    return api_request("/api/search/signatures/query/cached/v2/?page=0&size=5000", method="POST", data=payload)
 
-def get_supplemental_info(guid: str) -> Dict[str, Any]:
+def get_signature_supplemental(guid):
+    """Fetch supplemental data for a specific signature GUID."""
     return api_request(f"/api/search/signatures/query/cached/v2/{guid}/supplemental/")
 
-def get_bas_script_info(guids: List[str]) -> Dict[str, Any]:
+def get_bas_scripts(guids):
+    """Fetch BAS scripts for the given GUIDs."""
     payload = {
         "field": "sessions.analytics.guid",
         "op": "in",
@@ -65,32 +59,56 @@ def get_bas_script_info(guids: List[str]) -> Dict[str, Any]:
     return api_request("/api/search/bas/script/?page=0&size=1000", method="POST", data=payload)
 
 def main():
-    collection_guids = get_collection_guids(COLLECTION_GUID)
-    deployed_guids = get_deployed_guids()
+    # Fetch collection data
+    collection_data = get_collection(COLLECTION_GUID)
+    if not collection_data:
+        print("Failed to retrieve collection data.")
+        return
+
+    # Print the collections list
+    print("Collections List:")
+    print(json.dumps(collection_data, indent=2))
+    print("\n" + "="*50 + "\n")
+
+    # Extract GUIDs from collection data
+    analytics_guids = extract_values(collection_data['analytic_filter'])
     
-    # Find common GUIDs between collection and deployed
-    common_guids = list(set(collection_guids) & set(deployed_guids))
+    # Fetch deployed signatures data
+    deployed_data = get_deployed()
+    if not deployed_data:
+        print("Failed to retrieve deployed data.")
+        return
+
+    # Extract GUIDs from deployed data
+    deployed_guids = [item.get('guid') for item in deployed_data.get('items', [])]
     
-    bas_script_info = get_bas_script_info(common_guids)
-    
-    combined_data = {}
-    for guid in common_guids:
-        supplemental_info = get_supplemental_info(guid)
-        name = supplemental_info.get('name', f"Unnamed-{guid}")
-        
-        combined_data[name] = {
-            "guid": guid,
-            "supplemental_info": supplemental_info,
-            "bas_script_info": next((item for item in bas_script_info.get('items', []) if item.get('guid') == guid), {})
-        }
-    
-    # Output the combined data (you can modify this part to suit your needs)
-    for name, data in combined_data.items():
-        print(f"Name: {name}")
-        print(f"GUID: {data['guid']}")
-        print("Supplemental Info:", json.dumps(data['supplemental_info'], indent=2))
-        print("BAS Script Info:", json.dumps(data['bas_script_info'], indent=2))
-        print("-" * 50)
+    # Find matching GUIDs
+    matching_guids = [guid for guid in analytics_guids if guid in deployed_guids]
+
+    # Fetch BAS scripts for matching GUIDs
+    bas_scripts = get_bas_scripts(matching_guids)
+    if not bas_scripts:
+        print("Failed to retrieve BAS scripts.")
+        return
+
+    # Create a dictionary of BAS scripts keyed by GUID
+    bas_dict = {script['guid']: script for script in bas_scripts.get('items', [])}
+
+    # Process matching GUIDs
+    result_dict = {}
+    for guid in matching_guids:
+        supplemental_data = get_signature_supplemental(guid)
+        if supplemental_data:
+            name = supplemental_data.get('name', 'Unknown')
+            result_dict[name] = {
+                'guid': guid,
+                'supplemental_data': supplemental_data,
+                'bas_script': bas_dict.get(guid, {})
+            }
+
+    # Output the results
+    print("Processed Results:")
+    print(json.dumps(result_dict, indent=2))
 
 if __name__ == "__main__":
     main()
