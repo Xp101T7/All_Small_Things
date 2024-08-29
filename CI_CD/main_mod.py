@@ -27,6 +27,16 @@ def get_collection(base_url, api_key, collection_id):
         
         # Print status code and raw text response for debugging
         print(f"Status Code: {response.status_code}")
+        
+        if response.status_code == 204:
+            print("No content available for this request (204 No Content).")
+            return None
+        
+        # Check if the response is empty
+        if not response.text:
+            print("Received an empty response.")
+            return None
+        
         print(f"Response Text: {response.text}")
         
         response.raise_for_status()  # Raise an exception for non-200 status codes
@@ -41,6 +51,7 @@ def get_collection(base_url, api_key, collection_id):
         print(f"Error decoding JSON: {json_error}")
         print(f"Response content: {response.text}")
         return None
+
 
 
 def get_deployed(base_url, api_key):
