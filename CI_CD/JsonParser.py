@@ -16,7 +16,6 @@ try:
         data = json.load(file)
     logging.info(f"Successfully loaded data from {json_file_path}")
     logging.debug(f"Type of loaded data: {type(data)}")
-    logging.debug(f"First item of data: {data[0] if isinstance(data, list) else data}")
 except Exception as e:
     logging.error(f"Error loading JSON file: {e}")
     raise
@@ -25,13 +24,10 @@ except Exception as e:
 detection_values = []
 if isinstance(data, list):
     for item in data:
-        if isinstance(item, dict):
-            if "Detection" in item:
-                detection_values.append(item["Detection"])
-            else:
-                logging.warning(f"'Detection' key not found in item: {item}")
+        if isinstance(item, dict) and "Detection" in item:
+            detection_values.append(item["Detection"])
         else:
-            logging.warning(f"Unexpected item type: {type(item)}. Full item: {item}")
+            logging.warning(f"Unexpected item structure: {item}")
 elif isinstance(data, dict) and "Detection" in data:
     detection_values.append(data["Detection"])
 else:
@@ -39,7 +35,7 @@ else:
 
 logging.info(f"Number of detection values found: {len(detection_values)}")
 
-# Updated regex patterns for EventID
+# Restored full regex patterns for EventID
 event_id_patterns = [
     re.compile(r'EventID\s*(?:=|==|:|\bin\b)\s*(?:\'|\")?\s*(\d{1,6})\s*(?:\'|\")?', re.IGNORECASE),
     re.compile(r'EventID\s+in\s*\((\'|\")?\s*(\d{1,6})(?:\s*,\s*(?:\'|\")?\d{1,6}(?:\'|\")?\s*)*\)', re.IGNORECASE),
@@ -48,7 +44,7 @@ event_id_patterns = [
     re.compile(r'\bevent_id\s*[=:]\s*(\d{1,6})', re.IGNORECASE)
 ]
 
-# Regex patterns for EventCode
+# Restored full regex patterns for EventCode
 event_code_patterns = [
     re.compile(r'EventCode\s*(?:=|==|:|\bin\b)\s*(?:\'|\")?\s*(\d{1,6})\s*(?:\'|\")?', re.IGNORECASE),
     re.compile(r'EventCode\s+in\s*\((\'|\")?\s*(\d{1,6})(?:\s*,\s*(?:\'|\")?\d{1,6}(?:\'|\")?\s*)*\)', re.IGNORECASE),
@@ -58,44 +54,36 @@ event_code_patterns = [
 ]
 
 def extract_values(detection, patterns):
+    all_matches = []
     for pattern in patterns:
         matches = pattern.findall(detection)
         if matches:
-            logging.debug(f"Matches found with pattern: {pattern.pattern}")
-            logging.debug(f"Matches: {matches}")
-            return [match[0] if isinstance(match, tuple) else match for match in matches]
-    logging.debug(f"No match found for detection: {detection}")
-    return []
+            all_matches.extend([match[0] if isinstance(match, tuple) else match for match in matches])
+    return all_matches
 
 all_matches = []
 
-for i, detection in enumerate(detection_values):
-    logging.debug(f"Processing detection {i+1}/{len(detection_values)}")
+for detection in detection_values:
     if isinstance(detection, str):
-        event_data = {}
-        
         event_ids = extract_values(detection, event_id_patterns)
         event_codes = extract_values(detection, event_code_patterns)
         
-        if event_ids:
-            event_data['EventID'] = ', '.join(event_ids)
-        if event_codes:
-            event_data['EventCode'] = ', '.join(event_codes)
-        
-        if event_data:
+        # Create a separate entry for each EventID
+        for event_id in event_ids:
+            event_data = {'EventID': event_id}
+            if event_codes:
+                event_data['EventCode'] = event_codes[0]  # Assuming one EventCode per detection
             all_matches.append(event_data)
-        else:
-            logging.warning(f"No EventID or EventCode found in detection: {detection}")
         
-        logging.debug(f"Detection string: {detection}")
-        logging.debug(f"Extracted data: {event_data}")
+        if not event_ids:
+            logging.debug(f"No EventID found in detection: {detection[:100]}...")  # Log first 100 chars
     else:
-        logging.warning(f"Unexpected detection type: {type(detection)}. Full detection: {detection}")
+        logging.warning(f"Unexpected detection type: {type(detection)}")
 
 logging.info(f"Number of matches found: {len(all_matches)}")
 
 # Determine fieldnames dynamically
-fieldnames = sorted(set(key for match in all_matches for key in match.keys()))
+fieldnames = ['EventID'] + (['EventCode'] if any('EventCode' in match for match in all_matches) else [])
 
 # Write to CSV
 try:
