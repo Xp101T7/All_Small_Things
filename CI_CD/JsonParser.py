@@ -48,6 +48,15 @@ event_id_patterns = [
     re.compile(r'\bevent_id\s*[=:]\s*(\d{1,6})', re.IGNORECASE)
 ]
 
+# Regex patterns for EventCode
+event_code_patterns = [
+    re.compile(r'EventCode\s*(?:=|==|:|\bin\b)\s*(?:\'|\")?\s*(\d{1,6})\s*(?:\'|\")?', re.IGNORECASE),
+    re.compile(r'EventCode\s+in\s*\((\'|\")?\s*(\d{1,6})(?:\s*,\s*(?:\'|\")?\d{1,6}(?:\'|\")?\s*)*\)', re.IGNORECASE),
+    re.compile(r'EventCode:?\s*\n\s*-\s*(\d{1,6})(?:\s*\n\s*-\s*\d{1,6})*', re.IGNORECASE),
+    re.compile(r'EventCode:?\s*(\d{1,6})', re.IGNORECASE),
+    re.compile(r'\bevent_code\s*[=:]\s*(\d{1,6})', re.IGNORECASE)
+]
+
 def extract_values(detection, patterns):
     for pattern in patterns:
         matches = pattern.findall(detection)
@@ -63,25 +72,35 @@ all_matches = []
 for i, detection in enumerate(detection_values):
     logging.debug(f"Processing detection {i+1}/{len(detection_values)}")
     if isinstance(detection, str):
+        event_data = {}
+        
         event_ids = extract_values(detection, event_id_patterns)
+        event_codes = extract_values(detection, event_code_patterns)
         
-        for event_id in event_ids:
-            all_matches.append({'EventID': event_id})
+        if event_ids:
+            event_data['EventID'] = ', '.join(event_ids)
+        if event_codes:
+            event_data['EventCode'] = ', '.join(event_codes)
         
-        if not event_ids:
-            logging.warning(f"No EventID found in detection: {detection}")
+        if event_data:
+            all_matches.append(event_data)
+        else:
+            logging.warning(f"No EventID or EventCode found in detection: {detection}")
         
         logging.debug(f"Detection string: {detection}")
-        logging.debug(f"Extracted EventIDs: {event_ids}")
+        logging.debug(f"Extracted data: {event_data}")
     else:
         logging.warning(f"Unexpected detection type: {type(detection)}. Full detection: {detection}")
 
 logging.info(f"Number of matches found: {len(all_matches)}")
 
+# Determine fieldnames dynamically
+fieldnames = sorted(set(key for match in all_matches for key in match.keys()))
+
 # Write to CSV
 try:
     with open(csv_file_path, mode='w', newline='') as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=['EventID'])
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(all_matches)
     logging.info(f"Data has been written to {csv_file_path}")
