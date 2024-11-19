@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "README.md",
+                "file": "Sigma/Sigma Repo Searcher.md",
                 "mode": "source",
                 "source": false
               }
@@ -85,7 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "README.md",
+                "file": "Sigma/Sigma Repo Searcher.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -102,7 +102,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "README.md",
+                "file": "Sigma/Sigma Repo Searcher.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               }
@@ -125,7 +125,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "README.md"
+                "file": "Sigma/Sigma Repo Searcher.md"
               }
             }
           }
@@ -148,6 +148,9 @@
   },
   "active": "9b416c13203c848b",
   "lastOpenFiles": [
+    "README.md",
+    "Sigma/Sigma Repo Searcher.md",
+    "Sigma",
     "Python_Micro_Degree/Python_Security.md"
   ]
 }
