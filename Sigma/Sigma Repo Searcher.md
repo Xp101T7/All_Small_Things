@@ -9,7 +9,7 @@ This code will search the SigmaHQ repo using the command line search terms and g
 import os
 import yaml
 import argparse
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 from pathlib import Path
 import shutil
 
@@ -22,7 +22,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--product", help="Partial match for the product.")
     parser.add_argument("--tags", nargs="+", help="Partial matches for tags (space-separated).")
     parser.add_argument("--description", help="Partial match for the description.")
-    parser.add_argument("--outfile", required=True, help="Directory to copy matching YAML files.")
+    parser.add_argument("--outfile", help="Optional: Directory to copy matching YAML files.")
     return parser.parse_args()
 
 def safe_yaml_load_all(file_path: str) -> List[Dict[str, Any]]:
@@ -91,18 +91,20 @@ def matches_criteria(content: Dict[str, Any], criteria: Dict[str, Any]) -> bool:
 
     return True
 
-def search_and_copy_sigma_detectors(path: str, output_folder: str, criteria: Dict[str, Any]) -> List[str]:
-    """Searches YAML files in the given directory recursively based on matching criteria and copies them."""
+def search_sigma_detectors(path: str, criteria: Dict[str, Any], output_folder: str = None) -> List[Tuple[str, Dict[str, Any]]]:
+    """Searches YAML files in the given directory recursively based on matching criteria."""
     matches = []
     path = Path(path)
-    output_folder = Path(output_folder)
-
+    
     if not path.exists():
         print(f"Error: The path '{path}' does not exist.")
         return matches
 
-    if not output_folder.exists():
-        output_folder.mkdir(parents=True, exist_ok=True)
+    # Setup output folder if specified
+    if output_folder:
+        output_folder = Path(output_folder)
+        if not output_folder.exists():
+            output_folder.mkdir(parents=True, exist_ok=True)
 
     for yaml_file in path.rglob("*.yml"):
         try:
@@ -110,10 +112,22 @@ def search_and_copy_sigma_detectors(path: str, output_folder: str, criteria: Dic
 
             for content in documents:
                 if matches_criteria(content, criteria):
-                    matches.append(str(yaml_file))
-                    destination = output_folder / yaml_file.name
-                    shutil.copy(str(yaml_file), str(destination))
-                    print(f"Copied: {yaml_file} -> {destination}")
+                    matches.append((str(yaml_file), content))
+                    
+                    # Copy file if output folder is specified
+                    if output_folder:
+                        destination = output_folder / yaml_file.name
+                        shutil.copy(str(yaml_file), str(destination))
+                        print(f"Copied: {yaml_file} -> {destination}")
+                    else:
+                        # Print relevant information without copying
+                        print(f"\nFound matching rule in: {yaml_file}")
+                        print(f"Title: {content.get('title', 'N/A')}")
+                        print(f"Description: {content.get('description', 'N/A')}")
+                        product = content.get('logsource', {}).get('product', 'N/A')
+                        print(f"Product: {product}")
+                        print(f"Tags: {', '.join(content.get('tags', []))}")
+                        print("-" * 80)
                     break
 
         except Exception as e:
@@ -138,7 +152,7 @@ def main():
             print(f"{key}: {value}")
 
     print(f"\nSearching in directory: {args.path}")
-    results = search_and_copy_sigma_detectors(args.path, args.outfile, criteria)
+    results = search_sigma_detectors(args.path, criteria, args.outfile)
 
     if not results:
         print("\nNo matching detectors found.")
