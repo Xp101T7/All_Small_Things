@@ -1,11 +1,3 @@
-
-# The Code
-
-
-This code will search the SigmaHQ repo using the command line search terms and gets a list of all files. Future use is getting these files yml contents packed into a file to run by sigma_cli
-
-
-```json
 import os
 import yaml
 import argparse
@@ -13,8 +5,8 @@ from typing import Dict, List, Any
 from pathlib import Path
 import shutil
 
-def parse_arguments() -> argparse.Namespace:
-    """Parse command-line arguments for search criteria."""
+def parse_arguments():
+    """Parses command-line arguments for search criteria."""
     parser = argparse.ArgumentParser(description="Search for SIGMA YAML files based on criteria.")
     parser.add_argument("--path", required=True, help="Path to the SIGMA repository.")
     parser.add_argument("--title", help="Partial match for the title.")
@@ -22,14 +14,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--product", help="Partial match for the product.")
     parser.add_argument("--tags", nargs="+", help="Partial matches for tags (space-separated).")
     parser.add_argument("--description", help="Partial match for the description.")
-    parser.add_argument("--outfile", required=True, help="Directory to copy matching YAML files.")
+    parser.add_argument("--outfile", required=True, help="Directory to move matching files.")
     return parser.parse_args()
 
 def safe_yaml_load_all(file_path: str) -> List[Dict[str, Any]]:
     """Safely load all YAML documents with error handling."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            return list(yaml.safe_load_all(file))
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return list(yaml.safe_load_all(f))
     except yaml.YAMLError as e:
         print(f"YAML parsing error in {file_path}: {str(e)}")
         return []
@@ -47,10 +39,6 @@ def normalize_tag(tag: str) -> str:
 def matches_criteria(content: Dict[str, Any], criteria: Dict[str, Any]) -> bool:
     """Check if YAML content matches the given criteria."""
     if not content:
-        return False
-        
-    # Exclude deprecated rules
-    if content.get("status") == "deprecated":
         return False
 
     # Check title
@@ -79,20 +67,25 @@ def matches_criteria(content: Dict[str, Any], criteria: Dict[str, Any]) -> bool:
         content_tags = content.get("tags", [])
         if not content_tags:
             return False
-
+        
         # Normalize content tags
         content_tags = [normalize_tag(str(tag)) for tag in content_tags]
-
+        
         # Check if any required tag matches (partial matching)
         for required_tag in criteria["tags"]:
             required_tag = normalize_tag(required_tag)
-            if not any(required_tag in content_tag for content_tag in content_tags):
+            tag_found = False
+            for content_tag in content_tags:
+                if required_tag in content_tag:
+                    tag_found = True
+                    break
+            if not tag_found:
                 return False
 
     return True
 
-def search_and_copy_sigma_detectors(path: str, output_folder: str, criteria: Dict[str, Any]) -> List[str]:
-    """Searches YAML files in the given directory recursively based on matching criteria and copies them."""
+def search_and_move_sigma_detectors(path: str, output_folder: str, criteria: Dict[str, Any]) -> List[str]:
+    """Searches YAML files in the given directory recursively based on matching criteria and moves them."""
     matches = []
     path = Path(path)
     output_folder = Path(output_folder)
@@ -107,15 +100,15 @@ def search_and_copy_sigma_detectors(path: str, output_folder: str, criteria: Dic
     for yaml_file in path.rglob("*.yml"):
         try:
             documents = safe_yaml_load_all(str(yaml_file))
-
+            
             for content in documents:
                 if matches_criteria(content, criteria):
                     matches.append(str(yaml_file))
                     destination = output_folder / yaml_file.name
-                    shutil.copy(str(yaml_file), str(destination))
-                    print(f"Copied: {yaml_file} -> {destination}")
+                    shutil.move(str(yaml_file), str(destination))
+                    print(f"Moved: {yaml_file} -> {destination}")
                     break
-
+                    
         except Exception as e:
             print(f"Error processing file '{yaml_file}': {e}")
             continue
@@ -138,7 +131,7 @@ def main():
             print(f"{key}: {value}")
 
     print(f"\nSearching in directory: {args.path}")
-    results = search_and_copy_sigma_detectors(args.path, args.outfile, criteria)
+    results = search_and_move_sigma_detectors(args.path, args.outfile, criteria)
 
     if not results:
         print("\nNo matching detectors found.")
@@ -147,31 +140,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-```
-
-### Prime Example for SIGMAHQ:
-
-To search for SIGMA YAML files with detailed arguments (e.g., tags related to MITRE ATT&CK execution), you can use:
-
-```json 
-python SigmaHQ_Searcher.py \   
---path "C:\Path\To\SigmaHQ" \   
---tags "attack.execution" "attack.t1059.001" "mitre.attack.execution" \   
---product "windows" \   
---description "execution of commands or scripts"
-```
-
-```json
-python .\SigmaHQ_Searcher.py --path "C:\Users\hecki\Desktop\Code\sigma\sigma"   --product "windows" --outfile "test1"
-```
-
-Oneliner 
-```json
-python SigmaHQ_Searcher.py --path "C:\Users\<user>\Desktop\Code\sigma\sigma" --title "PowerShell" --date "2024" --product "windows" --tags "T1059" --description "alternate PowerShell hosts"
-```
-
-```json
-sigma convert -t splunk -p splunk_windows -o ./testout.txt  "C:\Users\<user>\Desktop\Code\sigma\test1"
-```
-

@@ -1,11 +1,3 @@
-
-# The Code
-
-
-This code will search the SigmaHQ repo using the command line search terms and gets a list of all files. Future use is getting these files yml contents packed into a file to run by sigma_cli
-
-
-```json
 import os
 import yaml
 import argparse
@@ -147,31 +139,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-```
-
-### Prime Example for SIGMAHQ:
-
-To search for SIGMA YAML files with detailed arguments (e.g., tags related to MITRE ATT&CK execution), you can use:
-
-```json 
-python SigmaHQ_Searcher.py \   
---path "C:\Path\To\SigmaHQ" \   
---tags "attack.execution" "attack.t1059.001" "mitre.attack.execution" \   
---product "windows" \   
---description "execution of commands or scripts"
-```
-
-```json
-python .\SigmaHQ_Searcher.py --path "C:\Users\hecki\Desktop\Code\sigma\sigma"   --product "windows" --outfile "test1"
-```
-
-Oneliner 
-```json
-python SigmaHQ_Searcher.py --path "C:\Users\<user>\Desktop\Code\sigma\sigma" --title "PowerShell" --date "2024" --product "windows" --tags "T1059" --description "alternate PowerShell hosts"
-```
-
-```json
-sigma convert -t splunk -p splunk_windows -o ./testout.txt  "C:\Users\<user>\Desktop\Code\sigma\test1"
-```
-
