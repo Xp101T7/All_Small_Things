@@ -51,7 +51,7 @@ Function Get-SuspiciousAPILogs {
 }
 
 # Function to monitor processes for suspicious behavior
-Function Monitor-Processes {
+Function Monitor-Processes {   
     Write-Output "Scanning running processes for potential malicious activity..."
     $processes = Get-Process | Where-Object {
         $_.Modules -match "ntdll.dll" -or $_.Modules -match "kernel32.dll"
@@ -82,3 +82,5 @@ Write-Output "Starting API monitoring script..."
 Get-SuspiciousAPILogs
 Monitor-Processes
 Write-Output "Monitoring complete."
+
+#Test CodeClimbers
