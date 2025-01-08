@@ -3,10 +3,10 @@
 
 ```
 index=your_index sourcetype=your_sourcetype
-| rex field=_raw max_match=0 "(?<![0-9])(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?![0-9])"
-| mvexpand ip_address
-| where isnotnull(ip_address)
+| rex field=_raw "(?<ip_address>\b(?:25[0-5]|2[0-4]\d|[0-1]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[0-1]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[0-1]?\d\d?)\.(?:25[0-5]|2[0-4]\d|[0-1]?\d\d?)\b)"
 | stats count by ip_address
 | sort -count
-| where count > 1
+| where count > 0
+| rename ip_address as "Source IP" count as "Event Count"
+| `security_assets_lookup`
 ```
