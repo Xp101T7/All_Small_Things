@@ -1,10 +1,9 @@
 import requests
-import os
 
-def create_github_issue(owner, repo):
-    token = os.environ.get("GITHUB_TOKEN")
-    if not token:
-        raise ValueError("GitHub token not found in environment variables.")
+def create_github_issue():
+    token = "YOUR_PERSONAL_ACCESS_TOKEN"
+    owner = "YOUR_USERNAME"
+    repo = "YOUR_REPO"
 
     title = input("Enter the issue title: ")
     body = "Default Body"
@@ -28,4 +27,4 @@ def create_github_issue(owner, repo):
         print("Error creating issue:", response.text)
 
 if __name__ == "__main__":
-    create_github_issue("your-username", "your-repo")
+    create_github_issue()
