@@ -1,23 +1,18 @@
 import requests
 
 def create_github_issue():
-    token = "YOUR_PERSONAL_ACCESS_TOKEN"
-    owner = "YOUR_USERNAME"
-    repo = "YOUR_REPO"
-
+    url = "https://api.github.com/repos/owner/repo/issues"
     title = input("Enter the issue title: ")
-    body = "Default Body"
-    labels = ["default-label"]
-
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
     headers = {
-        "Authorization": f"token {token}",
+        "Authorization": "Bearer YOUR_TOKEN_HERE",
         "Accept": "application/vnd.github.v3+json"
     }
     payload = {
         "title": title,
-        "body": body,
-        "labels": labels
+        "body": "I'm having a problem with this.",
+        "assignees": ["octocat"],
+        "milestone": 1,
+        "labels": ["bug"]
     }
 
     response = requests.post(url, headers=headers, json=payload)
