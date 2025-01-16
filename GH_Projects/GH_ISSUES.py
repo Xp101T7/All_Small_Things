@@ -1,15 +1,19 @@
 import requests
+import sys
 
 def create_github_issue():
     url = "https://api.github.com/repos/owner/repo/issues"
     title = input("Enter the issue title: ")
+    print("Enter the issue body (multi-line, markdown supported). Press Ctrl+D (or Ctrl+Z) when done:")
+    body = sys.stdin.read()  # Read multi-line input from stdin
+
     headers = {
         "Authorization": "Bearer YOUR_TOKEN_HERE",
         "Accept": "application/vnd.github.v3+json"
     }
     payload = {
         "title": title,
-        "body": "I'm having a problem with this.",
+        "body": body,
         "assignees": ["octocat"],
         "milestone": 1,
         "labels": ["bug"]
