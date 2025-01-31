@@ -1,0 +1,12 @@
+- [ ] 1. Detect Suspicious Use of 'setcap' (Linux Capabilities)
+- [ ] 2. Detect Unexpected Shell Spawn from Privileged Processes
+- [ ] 3. Detect Kernel Module Insertions (modprobe/insmod)
+- [ ] 4. Detect SSH Key Installation for Persistence
+- [ ] 5. Detect Sudoers File Modification Outside Normal Processes
+- [ ] 6. Detect Spoofed Daemon Names Running in Unusual Paths
+- [ ] 7. Detect Non-Standard Shell Histories
+- [ ] 8. Detect Suspicious System Time Changes
+- [ ] 9. Detect Abuse of Newly Created User Accounts
+- [ ] 10. Detect High-Frequency System Crashes or Reboots (Possible DoS Attempt)
+- [ ] 11. Detect Dual-Use Tools Execution (e.g., netcat, nmap) from Unexpected Users
+- [ ] 12. Detect Privileged Process Creating Reverse Shell
