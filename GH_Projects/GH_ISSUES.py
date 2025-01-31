@@ -1,89 +1,85 @@
 import requests
 
-def update_github_issue(
+def create_github_issue(
+    title,
+    body,
     token,
     owner,
     repo,
-    issue_number,
-    new_body=None,
-    new_assignees=None,
-    new_milestone=None,
-    new_labels=None
+    assignees=None,
+    milestone=None,
+    labels=None
 ):
     """
-    Updates an existing GitHub issue with new content, assignees, milestone, or labels.
-    Reference: https://docs.github.com/en/rest/issues/issues#update-an-issue
-    """
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    payload = {}
+    Create a new GitHub issue on the specified repository.
 
-    if new_body is not None:
-        payload["body"] = new_body
-    if new_assignees is not None:
-        payload["assignees"] = new_assignees
-    if new_milestone is not None:
-        payload["milestone"] = new_milestone
-    if new_labels is not None:
-        payload["labels"] = new_labels
-
-    response = requests.patch(url, headers=headers, json=payload)
-    if response.status_code == 200:
-        print("Issue updated:", response.json()["html_url"])
-    else:
-        print("Error updating issue:", response.text)
-
-def add_comment_to_issue(token, owner, repo, issue_number, comment_body):
+    :param title: The title of the issue.
+    :param body: The body/content of the issue (Markdown supported).
+    :param token: Your GitHub Personal Access Token.
+    :param owner: The owner (username or organization) of the repo.
+    :param repo: The name of the repository.
+    :param assignees: Optional list of GitHub usernames to assign to the issue.
+    :param milestone: Optional integer representing the milestone number.
+    :param labels: Optional list of label names.
     """
-    Adds a comment to an existing GitHub issue.
-    Reference: https://docs.github.com/en/rest/issues/comments#create-an-issue-comment
-    """
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.v3+json"
     }
     payload = {
-        "body": comment_body
+        "title": title,
+        "body": body
     }
+    if assignees is not None:
+        payload["assignees"] = assignees
+    if milestone is not None:
+        payload["milestone"] = milestone
+    if labels is not None:
+        payload["labels"] = labels
+
     response = requests.post(url, headers=headers, json=payload)
     if response.status_code == 201:
-        print("Comment added:", response.json()["html_url"])
+        print("Issue created:", response.json()["html_url"])
     else:
-        print("Error adding comment:", response.text)
+        print("Error creating issue:", response.text)
 
+
+# Example usage in a Jupyter cell:
 if __name__ == "__main__":
-    github_token = "YOUR_TOKEN"
+    # Prompt user for the issue title
+    issue_title = input("Enter the issue title: ")
+
+    body_text = """\
+# Bug Report
+
+I found a bug in our application:
+
+- **Steps to reproduce**:
+  1. Step one
+  2. Step two
+
+- **Expected behavior**:
+  The app should not crash.
+
+- **Additional context**:
+  This includes environment info, logs, etc.
+"""
+
+    github_token = "YOUR_TOKEN_HERE"
     repo_owner = "owner"
     repo_name = "repo"
-
-    issue_number_input = input("Enter the issue number to update: ")
-    new_body_text = "Updated issue body here"
     assignees_list = ["octocat"]
     milestone_number = 1
-    labels_list = ["bug", "help wanted"]
+    labels_list = ["bug"]
 
-    # Update issue
-    update_github_issue(
+    create_github_issue(
+        title=issue_title,
+        body=body_text,
         token=github_token,
         owner=repo_owner,
         repo=repo_name,
-        issue_number=issue_number_input,
-        new_body=new_body_text,
-        new_assignees=assignees_list,
-        new_milestone=milestone_number,
-        new_labels=labels_list
-    )
-
-    # Add a comment
-    comment_body = "This is a new comment on the issue."
-    add_comment_to_issue(
-        token=github_token,
-        owner=repo_owner,
-        repo=repo_name,
-        issue_number=issue_number_input,
-        comment_body=comment_body
+        assignees=assignees_list,
+        milestone=milestone_number,
+        labels=labels_list
     )
