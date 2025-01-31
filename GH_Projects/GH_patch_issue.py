@@ -73,7 +73,21 @@ if __name__ == "__main__":
     )
 
     # Add a comment
-    comment_body = "This is a new comment on the issue."
+    comment_body = """\
+# Bug Report
+
+I found a bug in our application:
+
+- **Steps to reproduce**:
+  1. Step one
+  2. Step two
+
+- **Expected behavior**:
+  The app should not crash.
+
+- **Additional context**:
+  This includes environment info, logs, etc.
+"""
     add_comment_to_issue(
         token=github_token,
         issue_number=issue_number_input,
