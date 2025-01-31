@@ -34,19 +34,22 @@ def update_github_issue(
     else:
         print("Error updating issue:", response.text)
 
-def add_comment_to_issue(token, owner, repo, issue_number, comment_body):
+def add_comment_to_issue(
+    token,
+    issue_number,
+    comment_body
+):
     """
     Adds a comment to an existing GitHub issue.
     Reference: https://docs.github.com/en/rest/issues/comments#create-an-issue-comment
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
+    url = f"https://api.github.com/repos/owner/repo/issues/{issue_number}/comments"
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.v3+json"
     }
-    payload = {
-        "body": comment_body
-    }
+    payload = {"body": comment_body}
+
     response = requests.post(url, headers=headers, json=payload)
     if response.status_code == 201:
         print("Comment added:", response.json()["html_url"])
