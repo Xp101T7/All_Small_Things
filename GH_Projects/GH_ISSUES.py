@@ -4,8 +4,6 @@ def create_github_issue(
     title,
     body,
     token,
-    owner,
-    repo,
     assignees=None,
     milestone=None,
     labels=None
@@ -22,7 +20,7 @@ def create_github_issue(
     :param milestone: Optional integer representing the milestone number.
     :param labels: Optional list of label names.
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+    url = f"https://api.github.com/repos/owner/repo/issues"
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.v3+json"
@@ -67,8 +65,6 @@ I found a bug in our application:
 """
 
     github_token = "YOUR_TOKEN_HERE"
-    repo_owner = "owner"
-    repo_name = "repo"
     assignees_list = ["octocat"]
     milestone_number = 1
     labels_list = ["bug"]
@@ -77,8 +73,6 @@ I found a bug in our application:
         title=issue_title,
         body=body_text,
         token=github_token,
-        owner=repo_owner,
-        repo=repo_name,
         assignees=assignees_list,
         milestone=milestone_number,
         labels=labels_list
