@@ -1,109 +1,48 @@
-# Linux Sudo Log Detection Rules
+# Linux Sudo Log Detection Rules (Splunk)
 
 ## 1. Monitoring All `sudo` Command Executions
-
-This detection captures all instances where a user executes a command with `sudo`.
-
-### **Bash Command**
-
-```bash
-grep 'sudo:' /var/log/auth.log
-```
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure process=sudo COMMAND=*
-| rex "COMMAND=(?<command>.*)"
-| table _time host user command
+| tstats count from datamodel=Endpoint.Processes where Processes.process_name="sudo" 
+| table _time host user Processes.process_name Processes.process
 ```
 
 ---
 
 ## 2. Detecting Failed `sudo` Attempts
-
-Failed `sudo` attempts indicate possible unauthorized privilege escalation attempts.
-
-### **Bash Command**
-
-```bash
-grep 'sudo:' /var/log/auth.log | grep 'authentication failure'
-```
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure "sudo" "authentication failure"
+index=linux sourcetype=secure "sudo:" "authentication failure"
 | table _time host user message
 ```
 
 ---
 
 ## 3. Identifying `sudo` Commands Executed Without a Password
-
-`NOPASSWD` directives in `sudo` commands could indicate a security risk.
-
-### **Bash Command**
-
-```bash
-grep 'sudo:' /var/log/auth.log | grep 'NOPASSWD'
-```
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure "sudo" "NOPASSWD"
+index=linux sourcetype=secure "sudo:" "NOPASSWD"
 | table _time host user message
 ```
 
 ---
 
 ## 4. Detecting Attempts to Edit the `sudoers` File
-
-Modifying the `/etc/sudoers` file could allow unauthorized privilege escalation.
-
-### **Bash Command**
-
-```bash
-grep 'sudo:' /var/log/auth.log | grep -E 'visudo|/etc/sudoers'
-```
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure "sudo" ("visudo" OR "/etc/sudoers")
+index=linux sourcetype=secure "sudo:" ("visudo" OR "/etc/sudoers")
 | table _time host user message
 ```
 
 ---
 
 ## 5. Monitoring for the Baron Samedit Vulnerability (CVE-2021-3156)
-
-Detects potential exploitation attempts of the `sudoedit` vulnerability.
-
-### **Bash Command**
-
-```bash
-grep 'sudoedit -s \\' /var/log/auth.log
-```
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure "sudoedit -s \\\"
+index=linux sourcetype=secure "sudoedit -s \\""
 | table _time host user process
 ```
 
 ---
 
 ## 6. Detecting Sudden Privilege Escalation
-
-Identifies cases where a non-root user suddenly switches to root.
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure "sudo" "root"
+index=linux sourcetype=secure "sudo" "root"
 | stats count by user host
 | where count > 3
 ```
@@ -111,26 +50,16 @@ sourcetype=linux_secure "sudo" "root"
 ---
 
 ## 7. Monitoring Sudo Command Enumeration (`sudo -l`)
-
-Attackers may use `sudo -l` to check allowed commands.
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure "sudo -l"
+index=linux sourcetype=secure "sudo -l"
 | table _time host user message
 ```
 
 ---
 
 ## 8. Detecting Unusual Sudo Usage by a Low-Privileged User
-
-Flags users executing `sudo` for the first time or with unusual frequency.
-
-### **Splunk Query**
-
 ```spl
-sourcetype=linux_secure "sudo"
+index=linux sourcetype=secure "sudo"
 | stats count by user host
 | eventstats avg(count) as avg_count stdev(count) as stdev_count by host
 | where count > (avg_count + 2*stdev_count)
@@ -138,5 +67,5 @@ sourcetype=linux_secure "sudo"
 
 ---
 
-These **detection rules** will help **monitor, detect, and alert on suspicious sudo activities** in a Linux environment.
+These **Splunk rules** will help **monitor, detect, and alert on suspicious sudo activities** in a Linux environment.
 
