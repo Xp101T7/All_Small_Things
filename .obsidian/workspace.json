@@ -25,12 +25,14 @@
             "id": "be7c7b4d7ed3bc78",
             "type": "leaf",
             "state": {
-              "type": "release-notes",
+              "type": "markdown",
               "state": {
-                "currentVersion": "1.7.7"
+                "file": "Detections/Brainstorming/Fortigate_and_networking_brainstorming.md",
+                "mode": "source",
+                "source": false
               },
               "icon": "lucide-file",
-              "title": "Release Notes 1.7.7"
+              "title": "Fortigate_and_networking_brainstorming"
             }
           }
         ],
@@ -53,7 +55,8 @@
             "state": {
               "type": "file-explorer",
               "state": {
-                "sortOrder": "alphabetical"
+                "sortOrder": "alphabetical",
+                "autoReveal": false
               },
               "icon": "lucide-folder-closed",
               "title": "Files"
@@ -173,6 +176,7 @@
   },
   "active": "be7c7b4d7ed3bc78",
   "lastOpenFiles": [
+    "Detections/Brainstorming/Fortigate_and_networking_brainstorming.md",
     "HHC24/decodeivke64.py",
     "HHC24",
     "Sigma/Sigma Repo Searcher.md",
