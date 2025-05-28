@@ -1,0 +1,1 @@
+python yourscript.py | ForEach-Object -Index ($i=0) {if ($_ -match "error") {$s=[math]::Max(0,$i-2);$e=[math]::Min($i+4,$input.Count-1);$input[$s..$e];""};$i++}
