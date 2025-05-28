@@ -1,1 +1,1 @@
-python yourscript.py | ForEach-Object -Index ($i=0) {if ($_ -match "error") {$s=[math]::Max(0,$i-2);$e=[math]::Min($i+4,$input.Count-1);$input[$s..$e];""};$i++}
+$ctx=2; $aft=4; $q=New-Object Collections.Queue; $post=0; <pythonhere> | ForEach-Object { $q.Enqueue($_); if ($q.Count -gt ($ctx + 1)) { $q.Dequeue() }; if ($_ -match 'error') { $q; $post = $aft } elseif ($post -gt 0) { $_; $post-- } }
