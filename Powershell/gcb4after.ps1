@@ -1,0 +1,1 @@
+$ctx=2; $aft=4; $q=New-Object Collections.Queue; $post=0; <pythonhere> | ForEach-Object { $q.Enqueue($_); if ($q.Count -gt ($ctx + 1)) { $q.Dequeue() }; if ($_ -match 'error') { $q; $post = $aft } elseif ($post -gt 0) { $_; $post-- } }
