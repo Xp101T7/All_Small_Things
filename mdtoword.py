@@ -1,51 +1,36 @@
-# -*- coding: utf-8 -*-
-"""
-Convert a Markdown file to DOCX on Windows.
-Requires: pip install pypandoc
-Also install pandoc from https://github.com/jgm/pandoc/releases
-"""
+from markdown import markdown
+from docx import Document
+from bs4 import BeautifulSoup  # pip install beautifulsoup4
 
-import sys
-from pathlib import Path
-import pypandoc
+def md_to_docx(md_file, out_file):
+    # Read the markdown file
+    text = open(md_file, encoding="utf-8").read()
 
-def md_to_docx(md_path: str, docx_path: str | None = None) -> str:
-    """
-    Convert a Markdown file to DOCX.
-    - md_path: path to .md
-    - docx_path: optional output path; defaults to same name with .docx
-    """
-    src = Path(md_path).expanduser().resolve()
-    if not src.is_file():
-        raise FileNotFoundError(f"Markdown file not found: {src}")
+    # Convert markdown -> HTML
+    html = markdown(text)
 
-    dest = Path(docx_path).expanduser().resolve() if docx_path else src.with_suffix(".docx")
+    # Parse HTML so we can keep headings, paragraphs, lists, etc.
+    soup = BeautifulSoup(html, "html.parser")
 
-    # Convert text → docx using pandoc; ensure standalone metadata
-    pypandoc.convert_text(
-        src.read_text(encoding="utf-8"),
-        "docx",
-        format="md",
-        outputfile=str(dest),
-        extra_args=["--standalone"],
-    )
+    doc = Document()
 
-    size = dest.stat().st_size
-    if size <= 0:
-        raise RuntimeError(f"Conversion produced empty file: {dest}")
+    for element in soup.children:
+        if element.name == "h1":
+            doc.add_heading(element.get_text(), level=1)
+        elif element.name == "h2":
+            doc.add_heading(element.get_text(), level=2)
+        elif element.name == "ul":
+            for li in element.find_all("li"):
+                doc.add_paragraph(li.get_text(), style="List Bullet")
+        elif element.name == "ol":
+            for li in element.find_all("li"):
+                doc.add_paragraph(li.get_text(), style="List Number")
+        else:
+            doc.add_paragraph(element.get_text())
 
-    return f"✅ Converted: {src}  →  {dest}  ({size} bytes)"
+    doc.save(out_file)
+    print(f"Saved DOCX to: {out_file}")
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python md_to_docx.py <markdown-file> [output-docx]")
-        sys.exit(1)
-
-    md_file = sys.argv[1]
-    out_file = sys.argv[2] if len(sys.argv) > 2 else None
-
-    try:
-        print(md_to_docx(md_file, out_file))
-    except Exception as e:
-        sys.stderr.write(f"❌ Error: {e}\n")
-        sys.exit(2)
+# Usage:
+# pip install markdown python-docx beautifulsoup4
+# python script.py
