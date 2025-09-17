@@ -1,0 +1,299 @@
+# Create an expansive, structured Markdown document for logging requirements and save it for download
+
+from datetime import datetime
+
+title = "# Detection Engineering Logging Requirements Catalog\n"
+date = datetime.now().strftime("%B %d, %Y")
+preamble = f"_Generated on {date}_\n\n"
+
+intro = """\
+This catalog enumerates recommended **log sources**, **required fields**, and **coverage notes** for a modern detection engineering program. 
+It’s organized by **platform domain** with a unified **core schema** (aligned to OCSF/ECS) and **ATT&CK-oriented data source mapping**.
+"""
+
+core_schema = """\
+## Core Event Schema (minimum fields to normalize)
+
+Align to OCSF/ECS. Use these base fields across all sources for correlation:
+
+- `@timestamp` (RFC3339/UTC), `event.id`, `event.dataset`, `event.category`, `event.type`, `event.action`, `event.severity`
+- Host: `host.name`, `host.id`, `host.ip`, `host.os.type`, `host.os.version`
+- User/Identity: `user.name`, `user.id`, `user.domain`, `user.email`, `user.roles`, `user.risk.score`
+- Network: `source.ip`, `source.port`, `destination.ip`, `destination.port`, `network.protocol`, `network.transport`
+- Process: `process.pid`, `process.name`, `process.executable`, `process.command_line`, `process.args`, `process.hash.sha256`, `process.binary.signature.status`
+- Parent/Ancestry: `process.parent.pid`, `process.parent.name`, `process.parent.command_line`, `process.parent.hash.sha256`
+- File/Registry/FS: `file.path`, `file.name`, `file.extension`, `file.hash.sha256`, `file.size`, `registry.key`, `registry.value`
+- HTTP/Web: `url.full`, `url.domain`, `http.request.method`, `http.response.status_code`, `user_agent.original`, `referrer`
+- DNS: `dns.question.name`, `dns.question.type`, `dns.resolved_ip`, `dns.response_code`
+- AuthZ/AuthN: `authentication.type`, `authentication.result`, `mfa.required`, `mfa.result`, `privilege.escalation` (bool)
+- Cloud: `cloud.provider`, `cloud.account.id`, `cloud.region`, `cloud.resource.id`, `cloud.service.name`, `api.operation`
+- Detection/Control: `rule.id`, `rule.name`, `rule.category`, `alert.id`, `alert.severity`, `alert.disposition`
+- Enrichment: `geo.*`, `threat.*` (intel match metadata), `related.hash`, `related.ip`, `related.user`
+- Ingest: `observer.vendor`, `observer.product`, `observer.version`, `event.ingested`, `tags[]`
+"""
+
+method = """\
+## Methodology
+
+1. **Coverage-first**: prioritize logs that provide data components mapped to MITRE ATT&CK techniques.
+2. **Normalize early**: map each source to the core schema at ingest (ECS/OCSF).
+3. **Quality gates**: validate timestamps, host IDs, required fields, and event volumes; alert on gaps (AU-5/8/12-aligned).
+4. **Tiers**: define *Tier 0 (must-have)*, *Tier 1 (strongly recommended)*, *Tier 2 (nice-to-have)* per domain.
+"""
+
+def section(header, rows):
+    out = f"## {header}\n\n"
+    out += "| Tier | Source | Event Focus / Use Cases | Required Fields |\n"
+    out += "|---|---|---|---|\n"
+    for tier, source, focus, fields in rows:
+        out += f"| {tier} | {source} | {focus} | {fields} |\n"
+    out += "\n"
+    return out
+
+windows = section("Assets: Windows", [
+    ("0", "Windows Security Log (Advanced Audit Policy)", 
+     "AuthN/AuthZ, group changes, policy changes, logon types, object access; AD DCs critical", 
+     "`@timestamp, host.name, event.code, user.name, user.sid, logon.type, src.ip, process.*`"),
+    ("0", "Sysmon", 
+     "Process/parent, network, file/create/delete, registry, driver load, image load, WMI, named pipes", 
+     "`process.*, process.parent.*, file.*, registry.*, hash.*, dest.*`"),
+    ("1", "PowerShell Operational", 
+     "Script block logging, module load, transcription for T1059.001", 
+     "`user.*, host.*, powershell.command, scriptblock.id, process.*`"),
+    ("1", "Windows Defender / MDE sensor telemetry", 
+     "EDR detections, behavioral events, AMSI content, device control", 
+     "`alert.*, rule.*, process.*, user.*, file.*, network.*`"),
+    ("1", "Task Scheduler, WMI, AppLocker", 
+     "Persistence/allowlisting bypass & constrained language", 
+     "`event.code, process.*, user.*, file.path, rule.name`"),
+    ("2", "BITS, PrintService, RDP, SMB Client/Server", 
+     "LOLBins/Living-off-the-land, lateral movement traces", 
+     "`event.code, user.*, dest.ip, file.*, process.*`")
+])
+
+linux = section("Assets: Linux/Unix", [
+    ("0", "auditd", 
+     "Syscalls, execve/execveat, setuid/setgid, file/privilege changes (T1059/T1068/T1548)", 
+     "`@timestamp, host.*, user.*, process.*, file.*, syscall, result`"),
+    ("0", "auth.log / secure / journald", 
+     "Auth success/fail, sudo/su, PAM, SSH logons and key use", 
+     "`user.name, auth.result, ssh.method, src.ip, process.*`"),
+    ("1", "OSQuery/EBPF (Falco)", 
+     "Process/file/network/kernel sensors for runtime threat detection", 
+     "`process.*, file.*, network.*, container.id, k8s.*`"),
+    ("1", "Package/Config mgmt (yum/apt/zypper)", 
+     "Malicious package installs, downgrade, unsigned packages", 
+     "`host.*, package.name, version, action, user.*`")
+])
+
+network = section("Network / NDR", [
+    ("0", "Zeek (conn,dns,http,ssl,files,notice)", 
+     "Lateral movement, C2 beacons, exfil patterns, TLS intel", 
+     "`network.*, source.*, destination.*, http.*, dns.*, ssl.*, file.*`"),
+    ("0", "NetFlow/IPFIX/VPC Flow", 
+     "East/West visibility, volumetric anomalies, beaconing", 
+     "`src.*, dst.*, bytes, packets, protocol, flow.id, duration`"),
+    ("0", "DNS Resolver Logs", 
+     "Suspicious domains/DGA/Typosquat; response codes", 
+     "`dns.question.*, dns.answers, src.ip, response_code`"),
+    ("1", "IDS/IPS (Suricata EVE)", 
+     "Signature & anomaly alerts; file extractions; TLS fingerprinting", 
+     "`event.action, alert.signature_id, src.*, dst.*, proto, flow_id, http.*, tls.*, file.*`"),
+    ("1", "Proxy/SWG/CASB", 
+     "URL filtering, file uploads, OAuth grants, malware downloads", 
+     "`user.*, url.*, http.*, user_agent, action, file.*`"),
+    ("2", "VPN/Remote Access/RADIUS/NPS", 
+     "Geo-impossible logins, MFA bypass attempts", 
+     "`user.*, src.ip, device.posture, mfa.*, auth.result`")
+])
+
+identity = section("Identity & IAM", [
+    ("0", "Active Directory (DC Security, Directory Services)", 
+     "Kerberos/NTLM, group policy, AD object changes, DC logons", 
+     "`event.code, user.*, target.user, computer.account, src.ip, logon.type`"),
+    ("0", "Azure AD / Entra ID (SignInLogs, AADServicePrincipalSignInLogs)", 
+     "Conditional Access, MFA, risky sign-ins, service principal abuse", 
+     "`user.*, app.id, app.display_name, ipAddress, mfa.*, risk.level, auth.result`"),
+    ("0", "Okta System Log", 
+     "MFA, enrollment/disable, app assignments, policy changes, token issues", 
+     "`actor.*, client.ipAddress, outcome.result, eventType, target.*, debugContext.*`"),
+    ("1", "Privileged Access Mgmt (PAM)", 
+     "Checkout/rotate events, session recording access", 
+     "`user.*, account.id, action, resource.id, policy.id`")
+])
+
+cloud = section("Cloud Platforms", [
+    ("0", "AWS CloudTrail (Mgmt & Data Events)", 
+     "API activity across accounts; IAM, STS, S3, EC2, Lambda", 
+     "`userIdentity.*, eventName, eventSource, awsRegion, requestParameters.*, responseElements.*, src.ip, errorCode`"),
+    ("0", "Azure Activity/Resource, M365 Unified Audit Log", 
+     "Control plane operations; mailbox/file access; admin acts", 
+     "`OperationName, ResultType, AADOperationType, Workload, UserId, ClientIP, Parameters[]`"),
+    ("0", "GCP Cloud Audit Logs", 
+     "Admin/Access logs; principal, methodName, resourceName", 
+     "`protoPayload.authenticationInfo.principalEmail, methodName, resourceName, serviceName, requestMetadata.callerIp`"),
+    ("1", "Cloud VPC/Subnet Flow", 
+     "Allowed/denied connections, east-west movement", 
+     "`src.*, dst.*, action, bytes, packets, flow_id`"),
+    ("1", "Cloud Security Findings (CSPM/CWPP)", 
+     "Misconfig & vuln findings as alerts", 
+     "`finding.*, resource.*, severity, rule.id, remediation.*`")
+])
+
+saas_dev = section("SaaS / Productivity / Dev", [
+    ("0", "Microsoft 365 UAL (Exchange/SharePoint/Teams)", 
+      "Mailbox access, file sharing, admin changes, DLP", 
+      "`RecordType, Operation, UserId, UserAgent, ClientIP, ObjectId, Parameters[]`"),
+    ("0", "GitHub/GitLab Audit Logs", 
+      "Repo/admin changes, tokens, branch protection, runners", 
+      "`actor, action, created_at, user_agent, org/repo, request_id, source_ip`"),
+    ("1", "Google Workspace Admin/Drive/User", 
+      "Admin actions, Drive file access, login events", 
+      "`actor.email, ipAddress, eventName, parameters[]`"),
+    ("1", "Slack/Atlassian/Jira/Confluence", 
+      "Workspace admin, app installs, exports, permission grants", 
+      "`actor, action, ip, object, client`")
+])
+
+apps = section("Applications & Services", [
+    ("0", "Web servers (IIS/Apache/Nginx)", 
+     "HTTP requests/responses, auth, errors, uploads, redirects", 
+     "`@timestamp, host.*, url.*, http.*, user_agent, src.ip, status, bytes.*`"),
+    ("0", "Databases (SQL Server/MySQL/PostgreSQL)", 
+     "Logons, failed logons, DDL/DML, privilege grants, long-running queries, replication", 
+     "`user.*, db.name, query, object, action, rows, latency, src.ip`"),
+    ("1", "Directory Services (LDAP/NPS/RADIUS)", 
+     "Bind ops, group membership reads, network auth", 
+     "`user.*, operation, result, src.ip, dn, attributes[]`"),
+    ("1", "Message gateways (Mail, SEG)", 
+     "Inbound/outbound mail, attachment hashes, SPF/DKIM/DMARC", 
+     "`mail.from, rcpt.to, subject, url, file.hash, verdict`")
+])
+
+endpoint = section("Endpoint Security", [
+    ("0", "EDR (CrowdStrike/S1/Defender/Carbon Black)", 
+     "Process trees, telemetry, detections, device control, network", 
+     "`device.id, process.*, parent.*, file.*, network.*, detection.*, policy.*`"),
+    ("0", "AV/AMSI", 
+     "Malware detections, quarantine, AMSI script scanning", 
+     "`threat.name, action, file.*, process.*, user.*, signature.status`"),
+    ("1", "Application Allowlisting (AppLocker/WDAC)", 
+     "Block/allow decisions, policy changes", 
+     "`rule.*, file.hash, signer, decision, user.*, process.*`"),
+])
+
+containers = section("Containers & Orchestration", [
+    ("0", "Kubernetes Audit Logs", 
+     "API server requests, RBAC changes, secrets/config access", 
+     "`verb, user.username, userAgent, sourceIPs[], objectRef.*, responseStatus.code, stage`"),
+    ("0", "Container Runtime (Docker/CRI)", 
+     "Exec/attach, image pulls, privilege escalations, mounts", 
+     "`container.id, image.name, process.*, user.*, network.*`"),
+    ("1", "Ingress/Service Mesh (NGINX Ingress/Istio)", 
+     "HTTP, mTLS, policy denials", 
+     "`src.*, dst.*, http.*, tls.*, policy.*`")
+])
+
+infra = section("Infrastructure & Ops", [
+    ("0", "DHCP, NAT, Firewall", 
+     "Address leases, NAT translations, permit/deny decisions", 
+     "`src.*, dst.*, action, bytes, rule.id, interface, session.id`"),
+    ("0", "Asset Inventory/CMDB", 
+     "Gold source for host IDs, owners, criticality", 
+     "`asset.id, owner, business_unit, criticality, tags[]`"),
+    ("1", "Vulnerability/Patch Mgmt", 
+     "Findings and remediation events", 
+     "`cve.*, cvss.*, asset.id, state, fix.version, deadline`"),
+    ("1", "Secrets Mgmt / KMS", 
+     "Key creation/use/deletion, secret access", 
+     "`principal, operation, key.id/secret.id, resource, outcome`")
+])
+
+ops = section("Email, DLP & Threat Intel", [
+    ("0", "Email Security (SEG/Cloud Email Security)", 
+     "Phishing detections, URL rewrites, payload verdicts", 
+     "`sender, recipient, subject, urls[], attachments[], verdict, user_click`"),
+    ("1", "DLP (endpoint/network/cloud)", 
+     "Policy matches, exfil attempts, sanctioned app abuse", 
+     "`user.*, rule.id, rule.name, action, data.classification, file.*, destination.*`"),
+    ("1", "Threat Intel (Feeds/TI Platform)", 
+     "Indicator sightings, decisions, enrichments", 
+     "`indicator.type, indicator.value, intel.source, first_seen, last_seen, relationship`")
+])
+
+retention = """\
+## Retention & Quality (by policy tier)
+
+- **Hot (searchable)**: 90 days minimum for Tier 0; 30–90 days for Tier 1; 14–30 days for Tier 2. 
+- **Cold (archive)**: 12–18 months minimum; longer for regulated data (PCI/HIPAA/FedRAMP).
+- **Clock & integrity**: NTP everywhere, monotonic timestamps, hash pipelines, immutability/WORM where feasible.
+- **Gaps**: alert if required fields are null > X% or event volume deviates > Yσ from baseline.
+"""
+
+attack = """\
+## ATT&CK Mapping (quick start)
+
+For each source, maintain a table of **data components → techniques**. Examples:
+
+- **Windows Security + Sysmon** → Process Creation, Image Load, Registry Modification, Network Connection → T1059, T1105, T1055, T1112, T1027…  
+- **Zeek DNS/HTTP/TLS** → DNS Query, HTTP Request/Response, TLS Handshake → T1071, T1568, T1041  
+- **CloudTrail** → API Call, AssumeRole, ConsoleLogin, AccessKey Use → T1078, T1098, T1539  
+- **Azure AD SignInLogs** → MFA Result, Conditional Access Decision, Service Principal Sign-in → T1078.004, T1556, T1098  
+- **Okta System Log** → App Assignment, Factor Enrollment/Reset, Policy Update → T1098, T1556, T1078  
+"""
+
+appendix = """\
+## Field Checklists (copy/paste)
+
+### Windows Security + Sysmon (minimum)
+`@timestamp, event.code, host.name, user.name, logon.type, src.ip, process.pid, process.name, process.executable, process.command_line, process.parent.pid, process.parent.name, file.path, file.hash.sha256, registry.key, registry.value, network.protocol, destination.ip, destination.port, signature.status`
+
+### Linux auditd
+`@timestamp, host.name, user.name, auid, session, tty, syscall, process.pid, process.executable, process.command_line, file.path, file.hash.sha256, dest.ip, dest.port, result`
+
+### Zeek (dns/http/tls/conn)
+`@timestamp, uid, source.ip, source.port, destination.ip, destination.port, network.protocol, dns.question.name, dns.response_code, http.request.method, url.full, user_agent.original, tls.version, ja3, sni, bytes.in, bytes.out, duration`
+
+### Suricata EVE
+`@timestamp, event_type, alert.signature_id, alert.signature, src_ip, src_port, dest_ip, dest_port, proto, flow_id, http.hostname, http.url, http.http_user_agent, tls.sni, fileinfo.sha256, app_proto, community_id, verdict`
+
+### CloudTrail
+`@timestamp, awsRegion, eventSource, eventName, userIdentity.type, userIdentity.arn, sourceIPAddress, requestParameters.*, responseElements.*, errorCode, resources[]`
+
+### Azure AD SignInLogs
+`@timestamp, UserId, UserDisplayName, IPAddress, AppId, AppDisplayName, ConditionalAccessStatus, MFAResult, DeviceDetail.*, AuthenticationRequirement, Status.errorCode`
+
+### Okta System Log
+`@timestamp, eventType, displayMessage, actor.alternateId, actor.displayName, client.ipAddress, client.userAgent.rawUserAgent, outcome.result, severity, target[]`
+
+### GitHub Audit
+`@timestamp, actor, action, org, repo, user_agent, request_id, created_at, source_ip, subject, additional_properties`
+
+### Kubernetes Audit
+`@timestamp, verb, user.username, userAgent, sourceIPs[], objectRef.{resource,name,namespace}, responseStatus.code, stage`
+
+"""
+
+closing = """\
+---
+
+**How to use this document**
+- Build data onboarding JIRA tickets per source using the table rows as acceptance criteria.
+- Validate field presence with unit tests (e.g., Logstash ingest tests or pytest against parsed samples).
+- Map each source to ATT&CK data components and keep a living coverage matrix.
+
+"""
+
+doc = (
+    title + "\n" + preamble + intro + "\n\n" +
+    core_schema + "\n" + method + "\n" +
+    windows + linux + network + identity + cloud +
+    saas_dev + apps + endpoint + containers + infra + ops +
+    retention + attack + appendix + closing
+)
+
+path = "/mnt/data/logging-requirements-catalog.md"
+with open(path, "w") as f:
+    f.write(doc)
+
+path
