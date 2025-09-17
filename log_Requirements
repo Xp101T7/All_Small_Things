@@ -1,0 +1,266 @@
+# -*- coding: utf-8 -*-
+"""
+Windows-safe writer that GUARANTEES non-empty Markdown outputs.
+- Forces absolute path (Documents\logging_catalog)
+- Writes UTF-8 with \n newlines
+- Verifies file size > 0 and prints bytes written
+"""
+
+from __future__ import annotations
+import sys
+from pathlib import Path
+from datetime import datetime
+
+# --- Make stdout/stderr UTF-8 safe on Windows consoles ---
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+# ---------- Helpers ----------
+def utc_datestr() -> str:
+    return datetime.utcnow().strftime("%B %d, %Y")
+
+def safe_write_text(path: Path, text: str) -> int:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", errors="strict", newline="\n") as f:
+        f.write(text)
+    size = path.stat().st_size
+    if size <= 0:
+        raise RuntimeError(f"Empty file written at {path}")
+    return size
+
+def table(header: str, rows: list[tuple[str, str, str, str]]) -> str:
+    out = [f"## {header}\n", "| Tier | Source | Event Focus / Use Cases | Required Fields |\n",
+           "|---|---|---|---|\n"]
+    for tier, source, focus, fields in rows:
+        out.append(f"| {tier} | {source} | {focus} | {fields} |\n")
+    out.append("\n")
+    return "".join(out)
+
+# ---------- Catalog content ----------
+TITLE = "# Detection Engineering Logging Requirements Catalog\n\n"
+PREAMBLE = f"_Generated on {utc_datestr()} (UTC)_\n\n"
+INTRO = (
+    "This catalog enumerates recommended **log sources**, **required fields**, and **coverage notes** "
+    "for a modern detection engineering program. It’s organized by **platform domain** with a unified "
+    "**core schema** (aligned to OCSF/ECS/ASIM) and **ATT&CK-oriented data source mapping**.\n\n"
+)
+
+CORE_SCHEMA = """## Core Event Schema (minimum fields to normalize)
+
+- `@timestamp` (RFC3339/UTC), `event.id`, `event.dataset`, `event.category`, `event.type`, `event.action`, `event.severity`
+- Host: `host.name`, `host.id`, `host.ip`, `host.os.type`, `host.os.version`
+- User/Identity: `user.name`, `user.id`, `user.domain`, `user.email`, `user.roles`, `user.risk.score`
+- Network: `source.ip`, `source.port`, `destination.ip`, `destination.port`, `network.protocol`, `network.transport`
+- Process: `process.pid`, `process.name`, `process.executable`, `process.command_line`, `process.args`, `process.hash.sha256`, `process.binary.signature.status`
+- Parent: `process.parent.pid`, `process.parent.name`, `process.parent.command_line`, `process.parent.hash.sha256`
+- File/Registry/FS: `file.path`, `file.name`, `file.extension`, `file.hash.sha256`, `file.size`, `registry.key`, `registry.value`
+- Web/DNS: `url.full`, `url.domain`, `http.request.method`, `http.response.status_code`, `user_agent.original`, `dns.question.name`, `dns.response_code`
+- AuthZ/AuthN: `authentication.type`, `authentication.result`, `mfa.required`, `mfa.result`, `privilege.escalation`
+- Cloud/API: `cloud.provider`, `cloud.account.id`, `cloud.region`, `cloud.resource.id`, `cloud.service.name`, `api.operation`
+- Detection: `rule.id`, `rule.name`, `alert.id`, `alert.severity`, `alert.disposition`
+- Enrichment: `geo.*`, `threat.*`, `related.hash`, `related.ip`, `related.user`
+- Ingest: `observer.vendor`, `observer.product`, `observer.version`, `event.ingested`, `tags[]`
+
+"""
+
+METHODOLOGY = """## Methodology
+1. **Coverage-first**: prioritize logs that map to ATT&CK data components.
+2. **Normalize at ingest**: ECS/OCSF/ASIM; keep stable join keys.
+3. **Quality gates**: validate timestamps, IDs, null rates, and volume drift.
+4. **Tiering**: Tier-0 (must), Tier-1 (strong), Tier-2 (nice).
+\n"""
+
+WINDOWS = table("Assets: Windows", [
+    ("0","Windows Security (Advanced Audit Policy)","AuthN/AuthZ, group/policy/object changes; DCs critical","`@timestamp, host.name, event.code, user.name, user.sid, logon.type, source.ip, process.*`"),
+    ("0","Sysmon","Process/parent, net, file/registry, image/driver load, WMI, named pipes","`process.*, process.parent.*, file.*, registry.*, hash.*, destination.*`"),
+    ("1","PowerShell Operational","Script block/module logs (4103/4104)","`user.*, host.*, powershell.command, scriptblock.id, process.*`"),
+    ("1","Microsoft Defender for Endpoint","EDR telemetry/detections, AMSI","`alert.*, rule.*, process.*, user.*, file.*, network.*`"),
+    ("2","BITS/RDP/SMB/AppLocker","LOLBins, lateral movement, allowlisting","`event.code, user.*, dest.ip, file.*, process.*`"),
+])
+
+LINUX = table("Assets: Linux/Unix", [
+    ("0","auditd","Syscalls, execve, privilege/file changes","`@timestamp, host.*, user.*, process.*, file.*, syscall, result`"),
+    ("0","auth.log / journald","Auth success/fail, sudo/su, SSH","`user.name, auth.result, ssh.method, source.ip, process.*`"),
+    ("1","eBPF/Falco, osquery","Runtime process/file/network, container/k8s","`process.*, file.*, network.*, container.id, k8s.*`"),
+])
+
+NETWORK = table("Network / NDR", [
+    ("0","Zeek (conn,dns,http,ssl,files,notice)","C2, exfil, TLS intel","`network.*, source.*, destination.*, http.*, dns.*, ssl.*, file.*`"),
+    ("0","NetFlow/IPFIX/VPC Flow","East/West, beaconing, volumetrics","`src.*, dst.*, bytes, packets, protocol, flow.id, duration`"),
+    ("1","Suricata EVE (IDS/IPS)","Signature/anomaly alerts, TLS, fileinfo","`event.action, alert.signature_id, src.*, dst.*, proto, flow_id, http.*, tls.*, file.*`"),
+    ("1","DNS Resolver Logs","Suspicious domains/DGA/RCODES","`dns.question.*, answers, source.ip, response_code`"),
+])
+
+IDENTITY = table("Identity & IAM", [
+    ("0","Active Directory (DC Security/DS)","Kerberos/NTLM, GPO, AD object changes","`event.code, user.*, target.user, computer.account, source.ip, logon.type`"),
+    ("0","Azure Entra ID (Signin/Audit)","Conditional Access/MFA, risky sign-ins, directory changes","`UserId, UserPrincipalName, IPAddress, AppId, AuthenticationRequirement, ConditionalAccessStatus, ResultType`"),
+    ("0","Okta System Log","MFA/app assignments/policy updates/tokens","`actor.*, client.ipAddress, outcome.result, eventType, target[]`"),
+    ("1","PAM","Checkout/rotation, session access","`user.*, account.id, action, resource.id, policy.id`"),
+])
+
+CLOUD = table("Cloud Platforms", [
+    ("0","AWS CloudTrail (Mgmt & Data)","API activity, IAM/STS/S3/EC2/Lambda","`userIdentity.*, eventName, eventSource, awsRegion, requestParameters.*, responseElements.*, sourceIPAddress, errorCode`"),
+    ("0","Azure Activity/Resource + M365 UAL","Control plane ops; mailbox/file access","`OperationName, ResultType, Workload/UserId, ClientIP, Parameters[]`"),
+    ("0","GCP Cloud Audit Logs","Admin/Access logs; principal/method/resource","`authenticationInfo.principalEmail, methodName, resourceName, serviceName, requestMetadata.callerIp`"),
+    ("1","Cloud Flow (AWS/GCP/Azure)","Allowed/denied connections","`src.*, dst.*, action, bytes, packets, flow_id`"),
+])
+
+SAAS_DEV = table("SaaS / Productivity / Dev", [
+    ("0","M365 UAL (Ex/Sp/OD/Teams)","Mailbox access, file sharing, admin changes, DLP","`RecordType, Operation, UserId, ClientIP, UserAgent, ObjectId, Parameters[]`"),
+    ("0","GitHub/GitLab Audit","Repo/admin/tokens/runners","`actor, action, created_at, user_agent, org/repo, request_id, source_ip`"),
+    ("1","Google Workspace Admin/Drive/User","Admin actions, Drive file access, logins","`actor.email, ipAddress, eventName, parameters[]`"),
+])
+
+APPS = table("Applications & Services", [
+    ("0","Web (IIS/Apache/Nginx)","HTTP req/resp, auth, uploads, errors","`@timestamp, host.*, url.*, http.*, user_agent, source.ip, status, bytes.*`"),
+    ("0","Databases (SQL/MySQL/Postgres)","Logons, DDL/DML, grants, long queries","`user.*, db.name, query, object, action, rows, latency, source.ip`"),
+    ("1","Message Gateways/SEG","Mail telemetry, SPF/DKIM/DMARC, verdicts","`mail.from, rcpt.to, subject, url, file.hash, verdict`"),
+])
+
+ENDPOINT = table("Endpoint Security", [
+    ("0","EDR (CrowdStrike/S1/MDE/CB)","Process trees, detections, device control","`device.id, process.*, parent.*, file.*, network.*, detection.*, policy.*`"),
+    ("0","AV/AMSI","Malware detections, quarantine, script scan","`threat.name, action, file.*, process.*, user.*, signature.status`"),
+    ("1","Allowlisting (AppLocker/WDAC)","Block/allow decisions, policy changes","`rule.*, file.hash, signer, decision, user.*, process.*`"),
+])
+
+K8S = table("Containers & Orchestration", [
+    ("0","Kubernetes Audit","APIServer requests, RBAC, secrets","`verb, user.username, userAgent, sourceIPs[], objectRef.*, responseStatus.code, stage`"),
+    ("0","Container Runtime (Docker/CRI)","Exec/attach, pulls, privilege, mounts","`container.id, image.name, process.*, user.*, network.*`"),
+    ("1","Ingress/Service Mesh","HTTP, mTLS, policy denials","`src.*, dst.*, http.*, tls.*, policy.*`"),
+])
+
+INFRA = table("Infrastructure & Ops", [
+    ("0","DHCP/NAT/Firewall","Leases, translations, permit/deny","`src.*, dst.*, action, bytes, rule.id, interface, session.id`"),
+    ("0","Asset Inventory/CMDB","Host IDs, owners, criticality","`asset.id, owner, business_unit, criticality, tags[]`"),
+    ("1","Vuln/Patch Mgmt","Findings & remediation","`cve.*, cvss.*, asset.id, state, fix.version, deadline`"),
+    ("1","Secrets Mgmt/KMS","Key ops & secret access","`principal, operation, key.id/secret.id, resource, outcome`"),
+])
+
+EMAIL_DLP_TI = table("Email, DLP & Threat Intel", [
+    ("0","Email Security (SEG/Cloud)","Phish detections, URL rewrites, payloads","`sender, recipient, subject, urls[], attachments[], verdict, user_click`"),
+    ("1","DLP (endpoint/network/cloud)","Policy matches/exfil","`user.*, rule.id, rule.name, action, data.classification, file.*, destination.*`"),
+    ("1","Threat Intel (Feeds/TIP)","Indicator sightings/decisions","`indicator.type, indicator.value, intel.source, first_seen, last_seen, relationship`"),
+])
+
+RETENTION = """## Retention & Quality
+- **Hot (searchable)**: ≥90d for Tier-0; 30–90d for Tier-1; 14–30d for Tier-2
+- **Cold (archive)**: ≥12–18 months; longer if regulated
+- **Clock & integrity**: NTP, monotonic timestamps, WORM where feasible
+- **Gaps**: alert on null key fields and volume drift
+\n"""
+
+ATTACK = """## ATT&CK Mapping (quick start)
+- Windows Security + Sysmon → Process Creation, Image Load, Registry, Network → T1059, T1105, T1055, T1112, T1027
+- Zeek DNS/HTTP/TLS → DNS Query, HTTP Request/Response, TLS Handshake → T1071, T1568, T1041
+- CloudTrail → API Call, AssumeRole, ConsoleLogin, AccessKey Use → T1078, T1098, T1539
+- Entra Signin/Audit → MFA Result, CA Decision, SP Sign-in → T1078.004, T1556, T1098
+- Okta System Log → App Assignment, Factor Enrollment/Reset, Policy Update → T1098, T1556, T1078
+\n"""
+
+APPENDIX = """## Field Checklists (copy/paste)
+
+### Windows Security + Sysmon
+`@timestamp, event.code, host.name, user.name, logon.type, source.ip, process.pid, process.name, process.executable, process.command_line, process.parent.pid, process.parent.name, file.path, file.hash.sha256, registry.key, registry.value, network.protocol, destination.ip, destination.port, signature.status`
+
+### Linux auditd
+`@timestamp, host.name, user.name, auid, session, tty, syscall, process.pid, process.executable, process.command_line, file.path, file.hash.sha256, destination.ip, destination.port, result`
+
+### Zeek (dns/http/tls/conn)
+`@timestamp, uid, source.ip, source.port, destination.ip, destination.port, network.protocol, dns.question.name, dns.response_code, http.request.method, url.full, user_agent.original, tls.version, ja3, sni, bytes.in, bytes.out, duration`
+
+### Suricata EVE
+`@timestamp, event_type, alert.signature_id, alert.signature, src_ip, src_port, dest_ip, dest_port, proto, flow_id, http.hostname, http.url, http.http_user_agent, tls.sni, fileinfo.sha256, app_proto, community_id, verdict`
+
+### CloudTrail
+`@timestamp, awsRegion, eventSource, eventName, userIdentity.type, userIdentity.arn, sourceIPAddress, requestParameters.*, responseElements.*, errorCode, resources[]`
+
+### Entra ID SigninLogs
+`TimeGenerated, UserId, UserPrincipalName, IPAddress, AppId, AppDisplayName, ConditionalAccessStatus, MFAResult/Status.errorCode, DeviceDetail.*`
+
+### Okta System Log
+`published, eventType, displayMessage, actor.alternateId, actor.displayName, client.ipAddress, client.userAgent.rawUserAgent, outcome.result, severity, target[]`
+
+### GitHub Audit
+`@timestamp/created, actor, action, org, repo, user_agent, request_id, source_ip, subject, additional_properties`
+
+### Kubernetes Audit
+`@timestamp, verb, user.username, userAgent, sourceIPs[], objectRef.{resource,name,namespace}, responseStatus.code, stage`
+\n"""
+
+CLOSING = "---\n**Usage**: Treat *Required Fields* as onboarding acceptance criteria; normalize to ECS/OCSF/ASIM; preserve join keys (Community ID, flow_id, DeviceId, SessionId).\n"
+
+BASE_DOC = (
+    TITLE + PREAMBLE + INTRO + CORE_SCHEMA + METHODOLOGY +
+    WINDOWS + LINUX + NETWORK + IDENTITY + CLOUD + SAAS_DEV +
+    APPS + ENDPOINT + K8S + INFRA + EMAIL_DLP_TI +
+    RETENTION + ATTACK + APPENDIX + CLOSING
+)
+
+# ---------- Azure & Products Expansion ----------
+EXP_TITLE = "# Detection Engineering Logging Requirements — Azure & Security Products Expansion\n\n"
+EXP_PREAMBLE = f"_Updated on {utc_datestr()} (UTC)_\n\n"
+
+AZURE = """## Microsoft Azure & Microsoft 365 (Entra ID, Defender, Sentinel)
+
+### Core Azure Tables & Streams
+| Source | Event Focus / Use Cases | Required Fields (minimum) |
+|---|---|---|
+| **Entra ID Sign-in Logs (SigninLogs)** | User/app sign-ins, CA/MFA, risk signals | `TimeGenerated, UserId, UserPrincipalName, IPAddress, AppId, AppDisplayName, AuthenticationRequirement, ConditionalAccessStatus, Status.errorCode, DeviceDetail.*, Location.*` |
+| **Entra ID Audit Logs (AuditLogs)** | Directory changes: users, groups, apps, roles, policies | `TimeGenerated, Category, OperationName, ResultType, InitiatedBy, TargetResources[], AdditionalDetails[]` |
+| **Entra ID Protection (Risk)** | Risky users/sign-ins, risk reasons | `detectionType, riskLevel, riskState, riskDetail, userId, userPrincipalName, ipAddress` |
+| **Azure Activity Log** | Subscription/resource CRUD & control-plane | `time, operationName, category, level, status, caller, correlationId, resourceId, resourceGroup, properties.*` |
+| **Azure Resource Logs** | Service/resource-specific logs (Key Vault, Storage) | `TimeGenerated, ResourceId, Category, OperationName, ResultType, CallerIpAddress, Identity, Properties.*` |
+| **Microsoft 365 Unified Audit Log** | Exchange/SharePoint/OneDrive/Teams | `CreationTime, Operation, UserId, RecordType, Workload, ClientIP, UserAgent, ObjectId, Parameters[]` |
+| **Microsoft Defender for Endpoint (XDR)** | Process/file/network telemetry; alerts | `Timestamp, DeviceId, DeviceName, ReportId, ActionType, InitiatingProcess*, File*, RemoteIP, RemotePort, SHA256, AccountName, AlertId, Severity` |
+| **Defender for Identity** | AD DC monitors, lateral movement, identity alerts | `Timestamp, SourceComputer, ActivityType, User, Target*, Result, SensorId` |
+| **Defender for Cloud Apps (MDCA)** | SaaS activity, OAuth apps, session control | `Timestamp, User, App, ActivityType, IP, Device, Location, SessionId, Policy, Action, Object` |
+| **Microsoft Sentinel (ASIM)** | Normalized schemas (DNS/Net/Process/etc.) | Use ASIM normalized fields and `im*` parsers. |
+
+"""
+
+PRODUCTS = """## Common Security Products (by family)
+
+### Identity & Access
+| Product | Event Stream | Required Fields (minimum) | Notes |
+|---|---|---|---|
+| **Okta** | System Log | `published, eventType, actor.{id,displayName,alternateId}, client.ipAddress, client.userAgent.rawUserAgent, outcome.result, severity, target[]` | Near real-time stream/API. |
+| **Duo Security** | Admin & Auth Logs | `timestamp, event_type, user.name, user.id, ip_address, factor, result, application.name, admin.*` | Use incremental offsets. |
+
+### Endpoint Detection & Response
+| Product | Event Stream | Required Fields (minimum) | Notes |
+|---|---|---|---|
+| **CrowdStrike Falcon** | Event Streams / NG-SIEM (CPS) | `@timestamp, event_simpleName, aid, ComputerName, UserName, FileName, SHA256, ParentProcessName, CommandLine, RemoteAddress, RemotePort, Tactic, Technique` | Include DetectionSummaryEvent/ProcessRollup2. |
+| **SentinelOne** | Deep Visibility / Cloud Funnel | `Timestamp, AgentId, AgentName, Os, ProcessName, ProcessId, ParentProcessName, CommandLine, SHA256, DnsRequest, RemoteIP, RemotePort, StorylineId` | Rich process/network telemetry. |
+
+### Network Security
+| Product | Event Stream | Required Fields (minimum) | Notes |
+|---|---|---|---|
+| **Palo Alto (PAN-OS)** | Traffic/Threat/System | `receive_time, serial, type, subtype, src, dst, sport, dport, proto, action, rule, sessionid, app, url, category, threatid, severity, bytes, packets` | Prefer CEF/LEEF mappings. |
+| **Fortinet FortiGate** | Traffic/Event/UTM | `date, time, devname, devid, logid, type, subtype, level, srcip, dstip, srcport, dstport, proto, action, policyid, service, sentbyte, rcvdbyte` | Field sets vary by firmware. |
+| **Zscaler (ZIA/ZPA)** | Web/Firewall/ZPA | `time, user, ip, action, url/app, method, status, policy, dept, location, dstip, connector, device_posture` | LSS/integrations recommended. |
+
+### Email & SaaS Security
+| Product | Event Stream | Required Fields (minimum) | Notes |
+|---|---|---|---|
+| **Proofpoint TAP** | Messages/Clicks (SIEM API) | `timestamp, guid, messageId, sender, recipient, subject, malware, phishing, threatName, threatStatus, clickTime, url, disposition` | Request ≤ 1h windows. |
+| **GitHub** | Audit Log | `created, actor, action, repo/org, actor_ip, user_agent, oauth_app, transport_protocol, operation_type, hashed_token` | 180-day default retention. |
+
+"""
+
+EXP_CLOSING = "---\n**Usage**: Export Tier-0 streams; normalize to ECS/OCSF/ASIM; enforce acceptance criteria based on *Required Fields*; preserve join keys.\n"
+
+EXP_DOC = EXP_TITLE + EXP_PREAMBLE + AZURE + PRODUCTS + EXP_CLOSING
+
+# ---------- Write to absolute Windows-friendly location ----------
+out_dir = Path.home() / "Documents" / "logging_catalog"
+base_path = out_dir / "logging-requirements-catalog.md"
+exp_path  = out_dir / "logging-requirements-azure-products-expansion.md"
+
+bytes_1 = safe_write_text(base_path, BASE_DOC)
+bytes_2 = safe_write_text(exp_path,  EXP_DOC)
+
+print(f"Wrote: {base_path}  ({bytes_1} bytes)")
+print(f"Wrote: {exp_path}   ({bytes_2} bytes)")
